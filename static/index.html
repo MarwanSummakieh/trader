@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Day Trader Bot</title>
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --bg:        #080d14;
+      --surface:   #0e1420;
+      --surface2:  #141c2c;
+      --border:    #1c2535;
+      --border2:   #243048;
+      --text:      #d4dce8;
+      --dim:       #4e6080;
+      --green:     #1adb6e;
+      --green-bg:  rgba(26,219,110,.10);
+      --red:       #f04c4c;
+      --red-bg:    rgba(240,76,76,.10);
+      --yellow:    #f5a623;
+      --yellow-bg: rgba(245,166,35,.10);
+      --blue:      #4a9eff;
+      --blue-bg:   rgba(74,158,255,.10);
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'SF Mono', 'Cascadia Code', 'Fira Mono', 'Consolas', monospace;
+      font-size: 12.5px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ── Error banner ─────────────────────────────── */
+    #err {
+      display: none;
+      background: var(--red-bg);
+      border-bottom: 1px solid var(--red);
+      color: var(--red);
+      padding: 7px 20px;
+      font-size: 12px;
+      letter-spacing: .5px;
+    }
+
+    /* ── Header ───────────────────────────────────── */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      padding: 0 20px;
+      height: 48px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .logo {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      color: var(--blue);
+    }
+    .sep { color: var(--border2); }
+    #clock { color: var(--text); font-size: 13px; }
+    #market-badge {
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+    }
+    .open  { background: var(--green-bg);  color: var(--green);  border: 1px solid rgba(26,219,110,.3); }
+    .closed{ background: rgba(78,96,128,.12); color: var(--dim); border: 1px solid var(--border2); }
+    #last-scan-badge {
+      margin-left: auto;
+      font-size: 10.5px;
+      color: var(--dim);
+    }
+
+    /* ── Stats bar ────────────────────────────────── */
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      border-bottom: 1px solid var(--border);
+    }
+    .stat {
+      padding: 10px 16px;
+      border-right: 1px solid var(--border);
+    }
+    .stat:last-child { border-right: none; }
+    .stat .v {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: .5px;
+      margin-bottom: 2px;
+    }
+    .stat .l {
+      font-size: 9.5px;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* ── Main grid ────────────────────────────────── */
+    .main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      min-height: 340px;
+      border-bottom: 1px solid var(--border);
+    }
+    .panel {
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid var(--border);
+    }
+    .panel:last-child { border-right: none; }
+    .panel-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+    .panel-body {
+      flex: 1;
+      padding: 12px;
+      overflow-y: auto;
+      max-height: 400px;
+    }
+
+    /* ── Position cards ───────────────────────────── */
+    .pos-card {
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+    .pos-card:last-child { margin-bottom: 0; }
+    .pos-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .pos-ticker { font-size: 15px; font-weight: 700; }
+    .tag {
+      font-size: 9.5px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      background: var(--border2);
+      color: var(--dim);
+    }
+    .pos-upnl {
+      margin-left: auto;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .pos-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .pos-cell .lbl {
+      font-size: 9.5px;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+    .pos-cell .val { font-size: 12.5px; font-weight: 600; }
+    .pos-levels { font-size: 11px; }
+
+    /* ── Scan list ────────────────────────────────── */
+    .scan-row {
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .scan-row:last-child { border-bottom: none; }
+    .scan-top {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 3px;
+    }
+    .scan-num  { color: var(--dim); width: 18px; font-size: 11px; }
+    .scan-tick { font-weight: 700; width: 62px; font-size: 12.5px; }
+    .score-bar { flex: 1; height: 5px; background: var(--border2); border-radius: 3px; overflow: hidden; }
+    .score-fill{ height: 100%; border-radius: 3px; transition: width .4s; }
+    .score-num { font-size: 12px; font-weight: 700; width: 30px; text-align: right; }
+    .scan-trend { font-size: 10.5px; width: 56px; text-align: right; }
+    .scan-detail { margin-left: 26px; font-size: 10.5px; color: var(--dim); }
+
+    /* ── Trades table ─────────────────────────────── */
+    .trades-section { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      padding: 8px 14px;
+      text-align: left;
+      font-size: 9.5px;
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody td {
+      padding: 7px 14px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover td { background: var(--surface2); }
+
+    /* ── Reason badges ────────────────────────────── */
+    .rb {
+      font-size: 9.5px;
+      padding: 2px 7px;
+      border-radius: 3px;
+      font-weight: 600;
+      letter-spacing: .5px;
+    }
+    .rb-take_profit { background: var(--green-bg);  color: var(--green); }
+    .rb-stop_loss   { background: var(--red-bg);    color: var(--red); }
+    .rb-eod_close   { background: var(--yellow-bg); color: var(--yellow); }
+
+    /* ── Utility ──────────────────────────────────── */
+    .green  { color: var(--green); }
+    .red    { color: var(--red); }
+    .yellow { color: var(--yellow); }
+    .blue   { color: var(--blue); }
+    .dim    { color: var(--dim); }
+    .bold   { font-weight: 700; }
+    .empty  { color: var(--dim); text-align: center; padding: 36px 12px; font-size: 12px; }
+  </style>
+</head>
+<body>
+
+<div id="err">⚠ Cannot reach the server — is <code>python server.py</code> running?</div>
+
+<header>
+  <span class="logo">◈ DAY TRADER</span>
+  <span class="sep">|</span>
+  <span id="clock">--:--:--</span>
+  <span class="sep">|</span>
+  <span id="market-badge" class="closed">○ MARKET CLOSED</span>
+  <span id="last-scan-badge">last scan: —</span>
+</header>
+
+<div class="stats-bar">
+  <div class="stat"><div class="v blue" id="s-capital">$—</div><div class="l">Capital</div></div>
+  <div class="stat"><div class="v" id="s-deployed">$—</div><div class="l">Deployed</div></div>
+  <div class="stat"><div class="v" id="s-positions">—</div><div class="l">Positions</div></div>
+  <div class="stat"><div class="v" id="s-pnl">$—</div><div class="l">Realized PnL</div></div>
+  <div class="stat"><div class="v" id="s-winrate">—%</div><div class="l">Win Rate</div></div>
+  <div class="stat"><div class="v dim" id="s-trades">—</div><div class="l">Trades</div></div>
+</div>
+
+<div class="main">
+  <div class="panel">
+    <div class="panel-head">
+      Open Positions
+      <span id="pos-count" class="dim">0 / 5</span>
+    </div>
+    <div class="panel-body" id="pos-body">
+      <div class="empty">No open positions</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      Scan Results
+      <span id="scan-count" class="dim">—</span>
+    </div>
+    <div class="panel-body" id="scan-body">
+      <div class="empty">Waiting for first scan…</div>
+    </div>
+  </div>
+</div>
+
+<div class="trades-section">
+  <div class="panel-head" style="padding: 8px 16px; border-bottom: 1px solid var(--border);">
+    Recent Closed Trades
+    <span id="trades-summary" class="dim"></span>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Ticker</th>
+        <th>Type</th>
+        <th>Entry</th>
+        <th>Exit</th>
+        <th>PnL</th>
+        <th>PnL %</th>
+        <th>Reason</th>
+        <th>Opened</th>
+        <th>Closed</th>
+      </tr>
+    </thead>
+    <tbody id="trades-body">
+      <tr><td colspan="9" class="empty">No closed trades yet</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function money(n, sign = false) {
+  if (n == null) return '—';
+  const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (sign && n >= 0 ? '+' : sign && n < 0 ? '-' : n < 0 ? '-' : '') + '$' + abs;
+}
+function pct(n, sign = false) {
+  if (n == null) return '—';
+  return (sign && n >= 0 ? '+' : '') + n.toFixed(2) + '%';
+}
+function cls(n) { return n >= 0 ? 'green' : 'red'; }
+function scoreColor(s) {
+  return s >= 65 ? '#1adb6e' : s >= 45 ? '#f5a623' : '#f04c4c';
+}
+
+// ── Update functions ────────────────────────────────────────────────────────
+
+function updateHeader(s) {
+  $('clock').textContent = s.time + ' ' + s.timezone;
+  const b = $('market-badge');
+  if (s.market_open) {
+    b.textContent = '● MARKET OPEN';
+    b.className = 'open';
+  } else {
+    b.textContent = '○ MARKET CLOSED';
+    b.className = 'closed';
+  }
+  $('last-scan-badge').textContent = s.last_scan_time ? 'last scan: ' + s.last_scan_time : 'last scan: —';
+}
+
+function updateStats(s, st) {
+  $('s-capital').textContent  = '$' + s.capital.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  $('s-deployed').textContent = money(s.capital_deployed);
+  $('s-positions').textContent = s.position_count + ' / ' + s.max_positions;
+
+  const pnl = st.total_pnl || 0;
+  $('s-pnl').textContent = money(pnl, true);
+  $('s-pnl').className = 'v ' + cls(pnl);
+
+  const wr = st.win_rate || 0;
+  $('s-winrate').textContent = wr.toFixed(1) + '%';
+  $('s-winrate').className = 'v ' + cls(wr - 50);
+
+  $('s-trades').textContent = st.total_trades || '0';
+}
+
+function updatePositions(positions, maxPos) {
+  $('pos-count').textContent = positions.length + ' / ' + maxPos;
+
+  if (!positions.length) {
+    $('pos-body').innerHTML = '<div class="empty">No open positions</div>';
+    return;
+  }
+
+  $('pos-body').innerHTML = positions.map(p => {
+    const dir   = p.current_price >= p.entry_price ? '▲' : '▼';
+    const c     = cls(p.unrealized_pnl);
+    const sign  = p.unrealized_pnl >= 0 ? '+' : '';
+    return `
+    <div class="pos-card">
+      <div class="pos-top">
+        <span class="pos-ticker">${p.ticker}</span>
+        <span class="tag">${p.asset_type}</span>
+        <span class="pos-upnl ${c}">${sign}${money(p.unrealized_pnl)} (${sign}${pct(p.unrealized_pnl_pct)})</span>
+      </div>
+      <div class="pos-row">
+        <div class="pos-cell"><div class="lbl">Entry</div><div class="val">$${p.entry_price.toFixed(2)}</div></div>
+        <div class="pos-cell"><div class="lbl">Now ${dir}</div><div class="val ${c}">$${p.current_price.toFixed(2)}</div></div>
+        <div class="pos-cell"><div class="lbl">Qty</div><div class="val">${p.quantity.toFixed(3)}</div></div>
+        <div class="pos-cell"><div class="lbl">Since</div><div class="val dim">${p.entry_time}</div></div>
+      </div>
+      <div class="pos-levels">
+        <span class="red">▼ Stop $${p.stop_loss.toFixed(2)}</span>
+        &nbsp;&nbsp;
+        <span class="green">▲ Target $${p.take_profit.toFixed(2)}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateScans(scans) {
+  $('scan-count').textContent = scans.length ? scans.length + ' symbols' : '—';
+
+  if (!scans.length) {
+    $('scan-body').innerHTML = '<div class="empty">Waiting for first scan…</div>';
+    return;
+  }
+
+  $('scan-body').innerHTML = scans.map((s, i) => {
+    const color  = scoreColor(s.score);
+    const trendC = s.trend === 'bullish' ? 'green' : s.trend === 'bearish' ? 'red' : 'yellow';
+    let signals  = [];
+    try { signals = JSON.parse(s.signals || '[]'); } catch(_) {}
+    const detail = [
+      '$' + parseFloat(s.price).toFixed(2),
+      'RSI ' + parseFloat(s.rsi).toFixed(0),
+      'Vol ' + parseFloat(s.volume_ratio).toFixed(1) + 'x',
+      ...signals.slice(0, 2),
+    ].join(' · ');
+
+    return `
+    <div class="scan-row">
+      <div class="scan-top">
+        <span class="scan-num dim">${i + 1}</span>
+        <span class="scan-tick">${s.ticker}</span>
+        <div class="score-bar"><div class="score-fill" style="width:${s.score}%;background:${color}"></div></div>
+        <span class="score-num" style="color:${color}">${s.score}</span>
+        <span class="scan-trend ${trendC}">${s.trend}</span>
+      </div>
+      <div class="scan-detail">${detail}</div>
+    </div>`;
+  }).join('');
+}
+
+function updateTrades(trades, stats) {
+  if (stats.total_trades) {
+    $('trades-summary').textContent =
+      `best ${money(stats.best_trade, true)} · worst ${money(stats.worst_trade, true)} · avg ${pct(stats.avg_pnl_pct, true)}`;
+  }
+
+  if (!trades.length) {
+    $('trades-body').innerHTML = '<tr><td colspan="9" class="empty">No closed trades yet</td></tr>';
+    return;
+  }
+
+  $('trades-body').innerHTML = trades.map(t => {
+    const c    = cls(t.pnl || 0);
+    const sign = (t.pnl || 0) >= 0 ? '+' : '';
+    return `
+    <tr>
+      <td class="bold">${t.ticker}</td>
+      <td class="dim">${t.asset_type}</td>
+      <td>$${t.entry_price.toFixed(2)}</td>
+      <td>${t.exit_price != null ? '$' + t.exit_price.toFixed(2) : '—'}</td>
+      <td class="${c}">${t.pnl != null ? sign + money(t.pnl) : '—'}</td>
+      <td class="${c}">${t.pnl_pct != null ? sign + t.pnl_pct.toFixed(2) + '%' : '—'}</td>
+      <td><span class="rb rb-${t.exit_reason}">${t.exit_reason || '—'}</span></td>
+      <td class="dim">${t.entry_time}</td>
+      <td class="dim">${t.exit_time}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Polling loop ────────────────────────────────────────────────────────────
+
+async function refresh() {
+  try {
+    const [status, positions, scans, trades, stats] = await Promise.all([
+      fetch('/api/status').then(r => r.json()),
+      fetch('/api/positions').then(r => r.json()),
+      fetch('/api/scans').then(r => r.json()),
+      fetch('/api/trades').then(r => r.json()),
+      fetch('/api/stats').then(r => r.json()),
+    ]);
+    $('err').style.display = 'none';
+    updateHeader(status);
+    updateStats(status, stats);
+    updatePositions(positions, status.max_positions);
+    updateScans(scans);
+    updateTrades(trades, stats);
+  } catch (e) {
+    $('err').style.display = 'block';
+  }
+}
+
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>

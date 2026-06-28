@@ -70,6 +70,7 @@ class TradingBot:
         analyses = scan_universe(stocks, crypto)
         self._last_analyses = analyses
         self._last_scan = self._now()
+        self.ledger.save_scan_results(analyses)
         console.print(f"[cyan]{len(analyses)} symbols analysed[/cyan]")
 
         candidates = get_buy_candidates(analyses, self.portfolio.open_tickers)

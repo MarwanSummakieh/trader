@@ -1,30 +1,33 @@
 import os
 from datetime import time
+from dotenv import load_dotenv
+
+load_dotenv()   # reads .env file (safe no-op if file doesn't exist)
 
 # --- Capital & Risk ---
-STARTING_CAPITAL = 10_000.0
-POSITION_SIZE_PCT = 0.15       # 15% of capital per trade
-STOP_LOSS_PCT = 0.02           # 2% hard stop
-TAKE_PROFIT_PCT = 0.04         # 4% target (2:1 R/R)
-MAX_POSITIONS = 5
+STARTING_CAPITAL = float(os.getenv("STARTING_CAPITAL", "10000"))
+POSITION_SIZE_PCT = float(os.getenv("POSITION_SIZE_PCT", "0.15"))
+STOP_LOSS_PCT = float(os.getenv("STOP_LOSS_PCT", "0.02"))
+TAKE_PROFIT_PCT = float(os.getenv("TAKE_PROFIT_PCT", "0.04"))
+MAX_POSITIONS = int(os.getenv("MAX_POSITIONS", "5"))
 
 # --- Signal Thresholds ---
-MIN_SCORE = 65                  # 0-100 score needed to trigger buy
-MIN_VOLUME_RATIO = 1.5          # Must be 1.5x average daily volume
+MIN_SCORE = int(os.getenv("MIN_SCORE", "65"))
+MIN_VOLUME_RATIO = 1.5
 RSI_OVERBOUGHT = 70
 RSI_OVERSOLD = 30
-MIN_PRICE = 5.0                 # Skip penny stocks
-MIN_AVG_DAILY_VOLUME = 500_000  # Skip illiquid names
+MIN_PRICE = 5.0
+MIN_AVG_DAILY_VOLUME = 500_000
 
 # --- Market Hours (US Eastern Time) ---
 MARKET_OPEN = time(9, 30)
 MARKET_CLOSE = time(16, 0)
-EOD_CLOSE_TIME = time(15, 45)  # Force-close all stock positions before this
+EOD_CLOSE_TIME = time(15, 45)
 
 # --- Loop Timing ---
-SCAN_INTERVAL_SECS = 300       # Full universe scan every 5 min
-MONITOR_INTERVAL_SECS = 120    # Position check every 2 min
-DISPLAY_INTERVAL_SECS = 30     # Redraw status every 30 sec
+SCAN_INTERVAL_SECS = 300
+MONITOR_INTERVAL_SECS = 120
+DISPLAY_INTERVAL_SECS = 30
 
 # --- Technical Indicator Periods ---
 RSI_PERIOD = 14

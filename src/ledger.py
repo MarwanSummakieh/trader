@@ -66,6 +66,22 @@ class Ledger:
                 signals     TEXT
             )
         """)
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS scan_results (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker       TEXT    NOT NULL,
+                asset_type   TEXT    NOT NULL,
+                score        INTEGER NOT NULL,
+                price        REAL    NOT NULL,
+                rsi          REAL,
+                volume_ratio REAL,
+                trend        TEXT,
+                signals      TEXT,
+                stop_loss    REAL,
+                take_profit  REAL,
+                scanned_at   TEXT    NOT NULL
+            )
+        """)
         self._conn.commit()
 
     # ── Writes ────────────────────────────────────────────────────────────
@@ -146,6 +162,28 @@ class Ledger:
             "best_trade": max(pnls) if pnls else 0.0,
             "worst_trade": min(pnls) if pnls else 0.0,
         }
+
+
+    def save_scan_results(self, analyses: list) -> None:
+        """Replace scan results table with latest sweep."""
+        now = datetime.now(ET).isoformat()
+        self._conn.execute("DELETE FROM scan_results")
+        for a in analyses:
+            self._conn.execute(
+                """INSERT INTO scan_results
+                   (ticker, asset_type, score, price, rsi, volume_ratio, trend,
+                    signals, stop_loss, take_profit, scanned_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (a.ticker, a.asset_type, a.score, a.price, a.rsi, a.volume_ratio,
+                 a.trend, json.dumps(a.signals), a.stop_loss, a.take_profit, now),
+            )
+        self._conn.commit()
+
+    def get_scan_results(self, limit: int = 25) -> list[dict]:
+        rows = self._conn.execute(
+            "SELECT * FROM scan_results ORDER BY score DESC LIMIT ?", (limit,)
+        ).fetchall()
+        return [dict(r) for r in rows]
 
 
 def _row(r: sqlite3.Row) -> Trade:
