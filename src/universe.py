@@ -25,5 +25,5 @@ STOCKS = [
 CRYPTO = [
     "BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD", "XRP-USD",
     "ADA-USD", "AVAX-USD", "DOGE-USD", "LINK-USD", "DOT-USD",
-    "ATOM-USD", "NEAR-USD", "LTC-USD", "UNI-USD",
+    "ATOM-USD", "NEAR-USD", "LTC-USD", "POL-USD",
 ]

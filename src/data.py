@@ -1,4 +1,5 @@
 import logging
+import uuid
 from typing import Optional
 
 import pandas as pd
@@ -59,7 +60,6 @@ def get_current_prices(tickers: list[str]) -> dict[str, float]:
             return prices
         close = raw["Close"]
         if isinstance(close, pd.Series):
-            # Single ticker
             val = close.dropna().iloc[-1] if not close.dropna().empty else None
             if val is not None:
                 prices[tickers[0]] = float(val)
@@ -75,30 +75,95 @@ def get_current_prices(tickers: list[str]) -> dict[str, float]:
 
 class EToroClient:
     """
-    Optional eToro API client.
-    Set ETORO_API_KEY env var to your key from eToro Settings → API.
-    Used only for portfolio context — all market data comes from yfinance.
+    eToro public API client (read-only portfolio/balance context).
+
+    Requires two keys from eToro Settings → Trading → API Key Management:
+      ETORO_API_KEY  = the "API Key"  (x-api-key header)
+      ETORO_USER_KEY = the "User Key" (x-user-key header)
+
+    All market data for analysis still comes from yfinance.
+    eToro's trading/execution endpoints require partner-level access and are
+    not used here — this is a paper-trading bot.
     """
-    BASE = "https://api.etoro.com"
+    BASE = "https://public-api.etoro.com/api/v1"
 
-    def __init__(self, api_key: str):
-        self.api_key = api_key
-        self.headers = {"Authorization": f"Bearer {api_key}"}
+    def __init__(self, public_key: str, private_key: str):
+        self.public_key = public_key
+        self.private_key = private_key
 
-    def get_portfolio(self) -> Optional[dict]:
-        if not self.api_key:
-            return None
+    def _headers(self) -> dict:
+        return {
+            "x-api-key": self.public_key,
+            "x-user-key": self.private_key,
+            "x-request-id": str(uuid.uuid4()),
+            "Accept": "application/json",
+        }
+
+    def _get(self, path: str) -> Optional[dict]:
         try:
             r = requests.get(
-                f"{self.BASE}/sapi/v1/user/portfolio",
-                headers=self.headers, timeout=5,
+                f"{self.BASE}{path}",
+                headers=self._headers(),
+                timeout=5,
             )
-            return r.json() if r.ok else None
-        except Exception:
+            if r.ok:
+                return r.json()
+            logger.debug("eToro API %s → %d %s", path, r.status_code, r.text[:120])
+            return None
+        except Exception as e:
+            logger.debug("eToro API request failed: %s", e)
             return None
 
+    def test_connection(self) -> tuple[bool, str]:
+        """Returns (success, message). Call this at startup."""
+        if not self.public_key or not self.private_key:
+            return False, "Missing ETORO_PUBLIC_KEY or ETORO_PRIVATE_KEY in .env"
+        data = self._get("/trading/info/portfolio")
+        if data is not None:
+            return True, "eToro API connected"
+        # Try the authenticated user profile endpoint as fallback
+        data = self._get("/user/profile")
+        if data is not None:
+            return True, "eToro API connected (profile endpoint)"
+        return False, "eToro API auth failed — check both keys in .env"
+
+    def get_portfolio(self) -> Optional[dict]:
+        return self._get("/trading/info/portfolio")
+
+    def get_demo_portfolio(self) -> Optional[dict]:
+        return self._get("/trading/info/demo/portfolio")
+
+    def get_balance(self) -> Optional[dict]:
+        return self._get("/account/balance")
+
     def get_account_balance(self) -> Optional[float]:
-        data = self.get_portfolio()
-        if data:
-            return data.get("creditByInstrumentType", {}).get("RealPortfolio", None)
+        """Returns total real account balance in USD, or None on failure."""
+        data = self.get_balance()
+        if not data:
+            return None
+        # eToro balance response shape varies — try common field names
+        for field in ("totalBalance", "balance", "amount", "totalEquity", "equity"):
+            if field in data and data[field] is not None:
+                return float(data[field])
+        # Sometimes nested under a key
+        if isinstance(data, list) and data:
+            entry = data[0]
+            for field in ("totalBalance", "balance", "amount"):
+                if field in entry:
+                    return float(entry[field])
         return None
+
+    def get_open_positions(self) -> list[dict]:
+        """Returns list of open positions from the real portfolio."""
+        portfolio = self.get_portfolio()
+        if not portfolio:
+            return []
+        # Common shapes: {"positions": [...]} or {"openTrades": [...]} or list directly
+        if isinstance(portfolio, list):
+            return portfolio
+        return (
+            portfolio.get("positions")
+            or portfolio.get("openTrades")
+            or portfolio.get("trades")
+            or []
+        )

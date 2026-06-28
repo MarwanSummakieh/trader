@@ -44,4 +44,6 @@ BB_STD = 2.0
 VOLUME_LOOKBACK = 20
 
 # --- eToro ---
-ETORO_API_KEY = os.getenv("ETORO_API_KEY", "")
+# Both keys are generated together in Settings → Trading → API Key Management
+ETORO_PUBLIC_KEY  = os.getenv("ETORO_PUBLIC_KEY", "")   # x-api-key header
+ETORO_PRIVATE_KEY = os.getenv("ETORO_PRIVATE_KEY", "")  # x-user-key header

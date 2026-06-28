@@ -35,7 +35,8 @@ class TradingBot:
         self.ledger = Ledger("ledger.db")
         self.portfolio = Portfolio(self.ledger)
         self.etoro: Optional[EToroClient] = (
-            EToroClient(config.ETORO_API_KEY) if config.ETORO_API_KEY else None
+            EToroClient(config.ETORO_PUBLIC_KEY, config.ETORO_PRIVATE_KEY)
+            if config.ETORO_PUBLIC_KEY else None
         )
         self._last_scan: Optional[datetime] = None
         self._last_monitor: Optional[datetime] = None
@@ -214,9 +215,13 @@ class TradingBot:
     def run(self):
         console.print("[bold green]Day Trading Bot — starting up[/bold green]")
         if self.etoro:
-            bal = self.etoro.get_account_balance()
-            if bal:
-                console.print(f"[dim]eToro account balance: ${bal:,.2f}[/dim]")
+            ok, msg = self.etoro.test_connection()
+            if ok:
+                bal = self.etoro.get_account_balance()
+                bal_str = f" — real balance: ${bal:,.2f}" if bal else ""
+                console.print(f"[green]✓ {msg}{bal_str}[/green]")
+            else:
+                console.print(f"[yellow]⚠ {msg}[/yellow]")
 
         while True:
             try:

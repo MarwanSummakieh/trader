@@ -22,7 +22,7 @@ from fastapi.staticfiles import StaticFiles
 sys.path.insert(0, os.path.dirname(__file__))
 
 import config
-from src.data import get_current_prices
+from src.data import get_current_prices, EToroClient
 from src.ledger import Ledger
 from src.portfolio import Portfolio
 
@@ -31,6 +31,10 @@ ET = pytz.timezone("America/New_York")
 
 _ledger = Ledger("ledger.db")
 _portfolio = Portfolio(_ledger)
+_etoro = (
+    EToroClient(config.ETORO_PUBLIC_KEY, config.ETORO_PRIVATE_KEY)
+    if config.ETORO_PUBLIC_KEY else None
+)
 
 # Cache live prices for 30 s to avoid hammering yfinance on every page refresh
 _price_cache: dict[str, float] = {}

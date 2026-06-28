@@ -48,8 +48,10 @@ def main():
         ],
     )
     # Silence noisy third-party loggers
-    for lib in ("yfinance", "peewee", "urllib3", "requests", "asyncio"):
-        logging.getLogger(lib).setLevel(logging.WARNING)
+    # yfinance logs ERROR for delisted/unavailable tickers — suppress since we
+    # handle missing data gracefully (get_intraday/get_daily return None).
+    for lib in ("yfinance", "yfinance.base", "peewee", "urllib3", "requests", "asyncio"):
+        logging.getLogger(lib).setLevel(logging.CRITICAL)
 
     import config
     if args.capital:

@@ -160,3 +160,68 @@
 2026-06-28 17:02:30,378 [ERROR] yfinance: 
 1 Failed download:
 2026-06-28 17:02:30,379 [ERROR] yfinance: ['UNI-USD']: possibly delisted; no price data found  (period=90d)
+2026-06-28 17:07:31,610 [ERROR] yfinance: $UNI-USD: possibly delisted; no price data found  (period=5d)
+2026-06-28 17:07:31,634 [ERROR] yfinance: 
+1 Failed download:
+2026-06-28 17:07:31,636 [ERROR] yfinance: ['UNI-USD']: possibly delisted; no price data found  (period=5d)
+2026-06-28 17:07:31,933 [ERROR] yfinance: $UNI-USD: possibly delisted; no price data found  (period=90d)
+2026-06-28 17:07:31,935 [ERROR] yfinance: 
+1 Failed download:
+2026-06-28 17:07:31,935 [ERROR] yfinance: ['UNI-USD']: possibly delisted; no price data found  (period=90d)
+2026-06-28 17:12:35,201 [ERROR] yfinance: $UNI-USD: possibly delisted; no price data found  (period=5d)
+2026-06-28 17:12:35,212 [ERROR] yfinance: 
+1 Failed download:
+2026-06-28 17:12:35,213 [ERROR] yfinance: ['UNI-USD']: possibly delisted; no price data found  (period=5d)
+2026-06-28 17:12:35,347 [ERROR] yfinance: $UNI-USD: possibly delisted; no price data found  (period=90d)
+2026-06-28 17:12:35,353 [ERROR] yfinance: 
+1 Failed download:
+2026-06-28 17:12:35,355 [ERROR] yfinance: ['UNI-USD']: possibly delisted; no price data found  (period=90d)
+2026-06-28 17:17:40,525 [ERROR] yfinance: $UNI-USD: possibly delisted; no price data found  (period=5d)
+2026-06-28 17:17:40,545 [ERROR] yfinance: 
+1 Failed download:
+2026-06-28 17:17:40,545 [ERROR] yfinance: ['UNI-USD']: possibly delisted; no price data found  (period=5d)
+2026-06-28 17:17:40,679 [ERROR] yfinance: $UNI-USD: possibly delisted; no price data found  (period=90d)
+2026-06-28 17:17:40,689 [ERROR] yfinance: 
+1 Failed download:
+2026-06-28 17:17:40,689 [ERROR] yfinance: ['UNI-USD']: possibly delisted; no price data found  (period=90d)
+2026-06-28 17:22:45,540 [ERROR] yfinance: $UNI-USD: possibly delisted; no price data found  (period=5d)
+2026-06-28 17:22:45,585 [ERROR] yfinance: 
+1 Failed download:
+2026-06-28 17:22:45,596 [ERROR] yfinance: ['UNI-USD']: possibly delisted; no price data found  (period=5d)
+2026-06-28 17:22:45,771 [ERROR] yfinance: $UNI-USD: possibly delisted; no price data found  (period=90d)
+2026-06-28 17:22:45,784 [ERROR] yfinance: 
+1 Failed download:
+2026-06-28 17:22:45,786 [ERROR] yfinance: ['UNI-USD']: possibly delisted; no price data found  (period=90d)
+2026-06-28 17:27:49,458 [ERROR] yfinance: $UNI-USD: possibly delisted; no price data found  (period=5d)
+2026-06-28 17:27:49,461 [ERROR] yfinance: 
+1 Failed download:
+2026-06-28 17:27:49,461 [ERROR] yfinance: ['UNI-USD']: possibly delisted; no price data found  (period=5d)
+2026-06-28 17:27:49,631 [ERROR] yfinance: $UNI-USD: possibly delisted; no price data found  (period=90d)
+2026-06-28 17:27:49,640 [ERROR] yfinance: 
+1 Failed download:
+2026-06-28 17:27:49,641 [ERROR] yfinance: ['UNI-USD']: possibly delisted; no price data found  (period=90d)
+2026-06-28 17:32:59,114 [ERROR] yfinance: $UNI-USD: possibly delisted; no price data found  (period=5d)
+2026-06-28 17:32:59,131 [ERROR] yfinance: 
+1 Failed download:
+2026-06-28 17:32:59,131 [ERROR] yfinance: ['UNI-USD']: possibly delisted; no price data found  (period=5d)
+2026-06-28 17:32:59,326 [ERROR] yfinance: $UNI-USD: possibly delisted; no price data found  (period=90d)
+2026-06-28 17:32:59,334 [ERROR] yfinance: 
+1 Failed download:
+2026-06-28 17:32:59,335 [ERROR] yfinance: ['UNI-USD']: possibly delisted; no price data found  (period=90d)
+2026-06-28 17:38:07,810 [ERROR] yfinance: $UNI-USD: possibly delisted; no price data found  (period=5d)
+2026-06-28 17:38:07,822 [ERROR] yfinance: 
+1 Failed download:
+2026-06-28 17:38:07,829 [ERROR] yfinance: ['UNI-USD']: possibly delisted; no price data found  (period=5d)
+2026-06-28 17:38:07,951 [ERROR] yfinance: $UNI-USD: possibly delisted; no price data found  (period=90d)
+2026-06-28 17:38:07,959 [ERROR] yfinance: 
+1 Failed download:
+2026-06-28 17:38:07,959 [ERROR] yfinance: ['UNI-USD']: possibly delisted; no price data found  (period=90d)
+2026-06-28 17:43:11,491 [ERROR] yfinance: $UNI-USD: possibly delisted; no price data found  (period=5d)
+2026-06-28 17:43:11,521 [ERROR] yfinance: 
+1 Failed download:
+2026-06-28 17:43:11,521 [ERROR] yfinance: ['UNI-USD']: possibly delisted; no price data found  (period=5d)
+2026-06-28 17:43:11,743 [ERROR] yfinance: $UNI-USD: possibly delisted; no price data found  (period=90d)
+2026-06-28 17:43:11,766 [ERROR] yfinance: 
+1 Failed download:
+2026-06-28 17:43:11,770 [ERROR] yfinance: ['UNI-USD']: possibly delisted; no price data found  (period=90d)
+2026-06-28 17:43:11,799 [INFO] src.portfolio: OPEN  BTC-USD  @ $59616.62  SL $58424.29  TP $62001.29  qty 0.025
