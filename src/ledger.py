@@ -1,0 +1,167 @@
+"""
+SQLite paper-trading ledger.
+Every buy and sell is recorded; PnL is calculated on close.
+"""
+
+import json
+import logging
+import sqlite3
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Optional
+
+import pytz
+
+logger = logging.getLogger(__name__)
+ET = pytz.timezone("America/New_York")
+
+
+@dataclass
+class Trade:
+    id: Optional[int]
+    ticker: str
+    asset_type: str
+    entry_time: str       # ISO-8601
+    entry_price: float
+    quantity: float
+    stop_loss: float
+    take_profit: float
+    signals: str          # JSON array
+    exit_time: Optional[str] = None
+    exit_price: Optional[float] = None
+    pnl: Optional[float] = None
+    pnl_pct: Optional[float] = None
+    exit_reason: Optional[str] = None
+
+    @property
+    def is_open(self) -> bool:
+        return self.exit_time is None
+
+    def unrealized_pnl(self, current_price: float) -> float:
+        return (current_price - self.entry_price) * self.quantity
+
+
+class Ledger:
+    def __init__(self, db_path: str = "ledger.db"):
+        self._conn = sqlite3.connect(db_path, check_same_thread=False)
+        self._conn.row_factory = sqlite3.Row
+        self._init()
+
+    def _init(self):
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS trades (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticker      TEXT    NOT NULL,
+                asset_type  TEXT    NOT NULL,
+                entry_time  TEXT    NOT NULL,
+                exit_time   TEXT,
+                entry_price REAL    NOT NULL,
+                exit_price  REAL,
+                quantity    REAL    NOT NULL,
+                stop_loss   REAL    NOT NULL,
+                take_profit REAL    NOT NULL,
+                pnl         REAL,
+                pnl_pct     REAL,
+                exit_reason TEXT,
+                signals     TEXT
+            )
+        """)
+        self._conn.commit()
+
+    # ── Writes ────────────────────────────────────────────────────────────
+
+    def open_trade(
+        self,
+        ticker: str,
+        asset_type: str,
+        entry_price: float,
+        quantity: float,
+        stop_loss: float,
+        take_profit: float,
+        signals: list[str],
+    ) -> Trade:
+        now = datetime.now(ET).isoformat()
+        cur = self._conn.execute(
+            """INSERT INTO trades
+               (ticker, asset_type, entry_time, entry_price, quantity,
+                stop_loss, take_profit, signals)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (ticker, asset_type, now, entry_price, quantity,
+             stop_loss, take_profit, json.dumps(signals)),
+        )
+        self._conn.commit()
+        return self.get_trade(cur.lastrowid)  # type: ignore[arg-type]
+
+    def close_trade(self, trade_id: int, exit_price: float, reason: str) -> Trade:
+        trade = self.get_trade(trade_id)
+        if trade is None:
+            raise ValueError(f"Trade {trade_id} not found")
+        pnl = (exit_price - trade.entry_price) * trade.quantity
+        pnl_pct = (exit_price - trade.entry_price) / trade.entry_price * 100
+        now = datetime.now(ET).isoformat()
+        self._conn.execute(
+            "UPDATE trades SET exit_time=?, exit_price=?, pnl=?, pnl_pct=?, exit_reason=? WHERE id=?",
+            (now, exit_price, pnl, pnl_pct, reason, trade_id),
+        )
+        self._conn.commit()
+        return self.get_trade(trade_id)  # type: ignore[return-value]
+
+    # ── Reads ─────────────────────────────────────────────────────────────
+
+    def get_trade(self, trade_id: int) -> Optional[Trade]:
+        row = self._conn.execute("SELECT * FROM trades WHERE id=?", (trade_id,)).fetchone()
+        return _row(row) if row else None
+
+    def get_open_trades(self) -> list[Trade]:
+        rows = self._conn.execute(
+            "SELECT * FROM trades WHERE exit_time IS NULL ORDER BY entry_time"
+        ).fetchall()
+        return [_row(r) for r in rows]
+
+    def get_recent_trades(self, n: int = 20) -> list[Trade]:
+        rows = self._conn.execute(
+            "SELECT * FROM trades WHERE exit_time IS NOT NULL ORDER BY exit_time DESC LIMIT ?",
+            (n,),
+        ).fetchall()
+        return [_row(r) for r in rows]
+
+    def get_stats(self) -> dict:
+        rows = self._conn.execute(
+            "SELECT pnl, pnl_pct FROM trades WHERE exit_time IS NOT NULL"
+        ).fetchall()
+        if not rows:
+            return {
+                "total_trades": 0, "win_rate": 0.0,
+                "total_pnl": 0.0, "avg_pnl_pct": 0.0,
+                "best_trade": 0.0, "worst_trade": 0.0,
+            }
+        pnls = [r["pnl"] for r in rows if r["pnl"] is not None]
+        pnl_pcts = [r["pnl_pct"] for r in rows if r["pnl_pct"] is not None]
+        wins = [p for p in pnls if p > 0]
+        return {
+            "total_trades": len(pnls),
+            "win_rate": len(wins) / len(pnls) * 100,
+            "total_pnl": sum(pnls),
+            "avg_pnl_pct": sum(pnl_pcts) / len(pnl_pcts) if pnl_pcts else 0.0,
+            "best_trade": max(pnls) if pnls else 0.0,
+            "worst_trade": min(pnls) if pnls else 0.0,
+        }
+
+
+def _row(r: sqlite3.Row) -> Trade:
+    return Trade(
+        id=r["id"],
+        ticker=r["ticker"],
+        asset_type=r["asset_type"],
+        entry_time=r["entry_time"],
+        exit_time=r["exit_time"],
+        entry_price=r["entry_price"],
+        exit_price=r["exit_price"],
+        quantity=r["quantity"],
+        stop_loss=r["stop_loss"],
+        take_profit=r["take_profit"],
+        pnl=r["pnl"],
+        pnl_pct=r["pnl_pct"],
+        exit_reason=r["exit_reason"],
+        signals=r["signals"],
+    )
