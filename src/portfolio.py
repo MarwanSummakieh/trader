@@ -77,18 +77,40 @@ class Portfolio:
         return trade
 
     def check_exits(self, current_prices: dict[str, float]) -> list[Trade]:
-        """Close positions that have hit stop-loss or take-profit."""
+        """
+        Close positions that hit stop-loss or take-profit.
+        Also applies a trailing profit lock: once unrealized PnL >= PROFIT_LOCK_THRESHOLD,
+        the stop is raised each cycle to lock in PROFIT_LOCK_RATIO of the current gain.
+        The stop only ever moves up — it never retracts.
+        """
         closed: list[Trade] = []
         for trade in self.open_trades:
             price = current_prices.get(trade.ticker)
             if price is None:
                 continue
+
+            # ── Trailing profit lock ───────────────────────────────────────
+            unrealized = (price - trade.entry_price) * trade.quantity
+            if unrealized >= config.PROFIT_LOCK_THRESHOLD:
+                locked_gain   = unrealized * config.PROFIT_LOCK_RATIO
+                new_stop      = trade.entry_price + (locked_gain / trade.quantity)
+                if new_stop > trade.stop_loss:
+                    self.ledger.update_stop_loss(trade.id, new_stop)
+                    logger.info(
+                        "LOCK  %-8s  PnL $%+.0f → stop raised $%.2f → $%.2f (locks $%.0f)",
+                        trade.ticker, unrealized, trade.stop_loss, new_stop, locked_gain,
+                    )
+                    # Refresh trade so the stop-loss check below uses the new value
+                    trade = self.ledger.get_trade(trade.id)  # type: ignore[assignment]
+
+            # ── Exit checks ────────────────────────────────────────────────
             if price <= trade.stop_loss:
                 reason = "stop_loss"
             elif price >= trade.take_profit:
                 reason = "take_profit"
             else:
                 continue
+
             closed_trade = self.ledger.close_trade(trade.id, price, reason)  # type: ignore[arg-type]
             logger.info(
                 "CLOSE %-8s @ $%8.2f  PnL $%+.2f (%+.1f%%)  [%s]",

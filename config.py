@@ -13,6 +13,13 @@ MAX_POSITIONS = int(os.getenv("MAX_POSITIONS", "5"))
 
 # --- Signal Thresholds ---
 MIN_SCORE = int(os.getenv("MIN_SCORE", "65"))
+
+# --- Profit Lock (trailing stop once gain threshold is hit) ---
+# When unrealized PnL reaches PROFIT_LOCK_THRESHOLD, the stop is raised to
+# lock in PROFIT_LOCK_RATIO of the current gain. Repeats on every monitor
+# cycle so the floor keeps climbing as the trade moves in your favour.
+PROFIT_LOCK_THRESHOLD = float(os.getenv("PROFIT_LOCK_THRESHOLD", "30"))  # USD
+PROFIT_LOCK_RATIO     = float(os.getenv("PROFIT_LOCK_RATIO",     "0.5")) # 0.5 = lock 50%
 MIN_VOLUME_RATIO = 1.5
 RSI_OVERBOUGHT = 70
 RSI_OVERSOLD = 30

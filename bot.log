@@ -225,3 +225,9 @@
 1 Failed download:
 2026-06-28 17:43:11,770 [ERROR] yfinance: ['UNI-USD']: possibly delisted; no price data found  (period=90d)
 2026-06-28 17:43:11,799 [INFO] src.portfolio: OPEN  BTC-USD  @ $59616.62  SL $58424.29  TP $62001.29  qty 0.025
+2026-06-28 20:43:08,316 [INFO] src.portfolio: OPEN  LTC-USD  @ $   42.67  SL $   41.82  TP $   44.38  qty 35.154
+2026-06-28 21:08:34,014 [INFO] src.portfolio: OPEN  ETH-USD  @ $ 1566.93  SL $ 1535.59  TP $ 1629.61  qty 0.957
+2026-06-28 21:08:34,019 [INFO] src.portfolio: OPEN  BNB-USD  @ $  551.10  SL $  540.08  TP $  573.14  qty 2.722
+2026-06-28 22:34:52,320 [INFO] src.portfolio: OPEN  SOL-USD  @ $   71.57  SL $   70.14  TP $   74.43  qty 13.274
+2026-06-28 23:24:52,554 [INFO] src.portfolio: CLOSE AVAX-USD @ $    6.62  PnL $+66.25 (+4.4%)  [take_profit]
+2026-06-29 07:39:42,234 [INFO] src.portfolio: OPEN  AVAX-USD @ $    6.58  SL $    6.45  TP $    6.84  qty 223.784

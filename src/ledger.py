@@ -108,6 +108,14 @@ class Ledger:
         self._conn.commit()
         return self.get_trade(cur.lastrowid)  # type: ignore[arg-type]
 
+    def update_stop_loss(self, trade_id: int, new_stop: float) -> None:
+        """Raise the stop loss on an open trade (profit lock / trailing stop)."""
+        self._conn.execute(
+            "UPDATE trades SET stop_loss=? WHERE id=? AND exit_time IS NULL",
+            (new_stop, trade_id),
+        )
+        self._conn.commit()
+
     def close_trade(self, trade_id: int, exit_price: float, reason: str) -> Trade:
         trade = self.get_trade(trade_id)
         if trade is None:
