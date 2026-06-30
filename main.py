@@ -60,7 +60,7 @@ def main():
     # ── One-shot modes ────────────────────────────────────────────────────
     if args.stats:
         from src.ledger import Ledger
-        s = Ledger().get_stats()
+        s = Ledger(config.DB_PATH).get_stats()
         console.print("\n[bold]Ledger Statistics[/bold]")
         console.print(f"  Total trades : {s['total_trades']}")
         console.print(f"  Win rate     : {s['win_rate']:.1f}%")
@@ -72,7 +72,7 @@ def main():
 
     if args.trades:
         from src.ledger import Ledger
-        trades = Ledger().get_recent_trades(20)
+        trades = Ledger(config.DB_PATH).get_recent_trades(20)
         if not trades:
             console.print("No closed trades yet.")
             return

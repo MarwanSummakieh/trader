@@ -3,476 +3,718 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Day Trader Bot</title>
+  <title>Trader Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
   <style>
     *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
     :root {
-      --bg:        #080d14;
-      --surface:   #0e1420;
-      --surface2:  #141c2c;
-      --border:    #1c2535;
-      --border2:   #243048;
-      --text:      #d4dce8;
-      --dim:       #4e6080;
-      --green:     #1adb6e;
-      --green-bg:  rgba(26,219,110,.10);
-      --red:       #f04c4c;
-      --red-bg:    rgba(240,76,76,.10);
-      --yellow:    #f5a623;
-      --yellow-bg: rgba(245,166,35,.10);
-      --blue:      #4a9eff;
-      --blue-bg:   rgba(74,158,255,.10);
+      --bg:        #08090d;
+      --s1:        #0f1117;
+      --s2:        #161820;
+      --s3:        #1d2030;
+      --border:    rgba(255,255,255,0.06);
+      --border2:   rgba(255,255,255,0.10);
+      --text:      #f1f5f9;
+      --muted:     #94a3b8;
+      --dim:       #475569;
+      --green:     #34d399;
+      --green2:    rgba(52,211,153,0.12);
+      --red:       #f87171;
+      --red2:      rgba(248,113,113,0.12);
+      --amber:     #fbbf24;
+      --amber2:    rgba(251,191,36,0.12);
+      --indigo:    #818cf8;
+      --indigo2:   rgba(129,140,248,0.12);
+      --mono:      'JetBrains Mono', monospace;
+      --sans:      'Inter', system-ui, sans-serif;
     }
+
+    html { font-size: 13px; }
 
     body {
+      font-family: var(--sans);
       background: var(--bg);
       color: var(--text);
-      font-family: 'SF Mono', 'Cascadia Code', 'Fira Mono', 'Consolas', monospace;
-      font-size: 12.5px;
-      line-height: 1.5;
       min-height: 100vh;
+      line-height: 1.5;
     }
 
-    /* ── Error banner ─────────────────────────────── */
+    /* ── Error ───────────────────────────────────────── */
     #err {
       display: none;
-      background: var(--red-bg);
+      align-items: center;
+      gap: 8px;
+      padding: 8px 20px;
+      background: var(--red2);
       border-bottom: 1px solid var(--red);
       color: var(--red);
-      padding: 7px 20px;
       font-size: 12px;
-      letter-spacing: .5px;
     }
+    #err.show { display: flex; }
 
-    /* ── Header ───────────────────────────────────── */
+    /* ── Header ──────────────────────────────────────── */
     header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
       display: flex;
       align-items: center;
-      gap: 20px;
-      padding: 0 20px;
-      height: 48px;
-      background: var(--surface);
+      gap: 16px;
+      height: 52px;
+      padding: 0 24px;
+      background: rgba(8,9,13,0.85);
+      backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border);
     }
+
     .logo {
-      font-size: 13px;
-      font-weight: 700;
-      letter-spacing: 3px;
-      color: var(--blue);
-    }
-    .sep { color: var(--border2); }
-    #clock { color: var(--text); font-size: 13px; }
-    #market-badge {
-      padding: 3px 10px;
-      border-radius: 4px;
-      font-size: 10.5px;
-      font-weight: 700;
-      letter-spacing: 1.5px;
-    }
-    .open  { background: var(--green-bg);  color: var(--green);  border: 1px solid rgba(26,219,110,.3); }
-    .closed{ background: rgba(78,96,128,.12); color: var(--dim); border: 1px solid var(--border2); }
-    #last-scan-badge {
-      margin-left: auto;
-      font-size: 10.5px;
-      color: var(--dim);
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+      background: linear-gradient(135deg, var(--indigo), var(--green));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: 2px;
     }
 
-    /* ── Stats bar ────────────────────────────────── */
-    .stats-bar {
+    .hdiv { width: 1px; height: 18px; background: var(--border2); }
+
+    #clock {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    #market-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      transition: all .3s;
+    }
+    #market-pill.open  { background: var(--green2);  color: var(--green);  border: 1px solid rgba(52,211,153,.25); }
+    #market-pill.closed{ background: rgba(71,85,105,.15); color: var(--dim); border: 1px solid var(--border2); }
+
+    .pulse {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    #market-pill.open .pulse {
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%,100% { opacity: 1; }
+      50%      { opacity: .3; }
+    }
+
+    #scan-info { margin-left: auto; font-size: 11px; color: var(--dim); }
+
+    /* ── Stats row ───────────────────────────────────── */
+    .stats-row {
       display: grid;
       grid-template-columns: repeat(6, 1fr);
       border-bottom: 1px solid var(--border);
     }
-    .stat {
-      padding: 10px 16px;
+    .metric {
+      padding: 14px 20px;
       border-right: 1px solid var(--border);
+      transition: background .2s;
     }
-    .stat:last-child { border-right: none; }
-    .stat .v {
-      font-size: 17px;
-      font-weight: 700;
-      letter-spacing: .5px;
-      margin-bottom: 2px;
+    .metric:last-child { border-right: none; }
+    .metric:hover { background: var(--s1); }
+    .metric-val {
+      font-family: var(--mono);
+      font-size: 20px;
+      font-weight: 600;
+      line-height: 1.2;
+      margin-bottom: 4px;
     }
-    .stat .l {
-      font-size: 9.5px;
-      color: var(--dim);
+    .metric-lbl {
+      font-size: 10px;
+      font-weight: 500;
       text-transform: uppercase;
       letter-spacing: 1px;
+      color: var(--dim);
     }
 
-    /* ── Main grid ────────────────────────────────── */
-    .main {
+    /* ── Main grid ───────────────────────────────────── */
+    .grid-main {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      min-height: 340px;
+      min-height: 420px;
       border-bottom: 1px solid var(--border);
     }
-    .panel {
+
+    .pane {
       display: flex;
       flex-direction: column;
       border-right: 1px solid var(--border);
     }
-    .panel:last-child { border-right: none; }
-    .panel-head {
+    .pane:last-child { border-right: none; }
+
+    .pane-head {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      padding: 8px 16px;
+      justify-content: space-between;
+      padding: 10px 20px;
       border-bottom: 1px solid var(--border);
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--dim);
     }
-    .panel-body {
-      flex: 1;
-      padding: 12px;
-      overflow-y: auto;
-      max-height: 400px;
+    .pane-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+    }
+    .pane-badge {
+      font-size: 11px;
+      color: var(--dim);
+      font-family: var(--mono);
     }
 
-    /* ── Position cards ───────────────────────────── */
+    .pane-body {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      max-height: 460px;
+    }
+
+    /* ── Position cards ──────────────────────────────── */
     .pos-card {
-      background: var(--surface2);
-      border: 1px solid var(--border2);
-      border-radius: 6px;
-      padding: 12px 14px;
+      background: var(--s2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
       margin-bottom: 10px;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .pos-card:hover {
+      border-color: var(--border2);
+      box-shadow: 0 4px 20px rgba(0,0,0,.4);
     }
     .pos-card:last-child { margin-bottom: 0; }
-    .pos-top {
+
+    .pos-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .pos-ticker {
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 600;
+    }
+    .pos-type {
+      font-size: 10px;
+      font-weight: 500;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: var(--s3);
+      color: var(--dim);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+    .pos-pnl {
+      margin-left: auto;
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .pos-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .pos-cell-lbl {
+      font-size: 10px;
+      color: var(--dim);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 2px;
+    }
+    .pos-cell-val {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      font-weight: 600;
+    }
+
+    /* Price track: shows where price sits between SL and TP */
+    .price-track { margin-top: 4px; }
+    .price-track-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: var(--dim);
+      font-family: var(--mono);
+      margin-bottom: 5px;
+    }
+    .price-track-bar {
+      position: relative;
+      height: 4px;
+      border-radius: 99px;
+      background: linear-gradient(to right, var(--red2) 0%, var(--s3) 40%, var(--green2) 100%);
+      overflow: visible;
+    }
+    .track-fill {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      border-radius: 99px;
+      background: linear-gradient(to right, rgba(248,113,113,.4), rgba(52,211,153,.6));
+      transition: width .4s ease;
+    }
+    .track-dot {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--text);
+      border: 2px solid var(--bg);
+      box-shadow: 0 0 6px rgba(255,255,255,.3);
+      transition: left .4s ease;
+    }
+    .track-entry {
+      position: absolute;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 3px; height: 12px;
+      border-radius: 2px;
+      background: var(--dim);
+      transition: left .4s ease;
+    }
+
+    /* ── Scan rows ───────────────────────────────────── */
+    .scan-row {
       display: flex;
       align-items: center;
       gap: 10px;
-      margin-bottom: 10px;
+      padding: 8px 6px;
+      border-radius: 7px;
+      transition: background .15s;
+      cursor: default;
     }
-    .pos-ticker { font-size: 15px; font-weight: 700; }
-    .tag {
-      font-size: 9.5px;
-      padding: 1px 6px;
-      border-radius: 3px;
-      background: var(--border2);
-      color: var(--dim);
-    }
-    .pos-upnl {
-      margin-left: auto;
-      font-size: 13px;
-      font-weight: 700;
-    }
-    .pos-row {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 8px;
-      margin-bottom: 8px;
-    }
-    .pos-cell .lbl {
-      font-size: 9.5px;
-      color: var(--dim);
-      text-transform: uppercase;
-      letter-spacing: .5px;
-    }
-    .pos-cell .val { font-size: 12.5px; font-weight: 600; }
-    .pos-levels { font-size: 11px; }
+    .scan-row:hover { background: var(--s2); }
 
-    /* ── Scan list ────────────────────────────────── */
-    .scan-row {
-      padding: 7px 0;
-      border-bottom: 1px solid var(--border);
+    .scan-rank {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--dim);
+      width: 16px;
+      text-align: right;
+      flex-shrink: 0;
     }
-    .scan-row:last-child { border-bottom: none; }
+
+    /* SVG score ring */
+    .score-ring { flex-shrink: 0; }
+
+    .scan-info { flex: 1; min-width: 0; }
     .scan-top {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 3px;
+      gap: 6px;
+      margin-bottom: 2px;
     }
-    .scan-num  { color: var(--dim); width: 18px; font-size: 11px; }
-    .scan-tick { font-weight: 700; width: 62px; font-size: 12.5px; }
-    .score-bar { flex: 1; height: 5px; background: var(--border2); border-radius: 3px; overflow: hidden; }
-    .score-fill{ height: 100%; border-radius: 3px; transition: width .4s; }
-    .score-num { font-size: 12px; font-weight: 700; width: 30px; text-align: right; }
-    .scan-trend { font-size: 10.5px; width: 56px; text-align: right; }
-    .scan-detail { margin-left: 26px; font-size: 10.5px; color: var(--dim); }
+    .scan-ticker {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .scan-trend {
+      font-size: 10px;
+      font-weight: 500;
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+    .trend-bullish { background: var(--green2);  color: var(--green); }
+    .trend-bearish { background: var(--red2);    color: var(--red); }
+    .trend-neutral { background: var(--amber2);  color: var(--amber); }
 
-    /* ── Trades table ─────────────────────────────── */
-    .trades-section { overflow-x: auto; }
+    .scan-detail {
+      font-size: 10.5px;
+      color: var(--dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .scan-score-num {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+      width: 28px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+
+    /* ── Trades table ────────────────────────────────── */
+    .trades-wrap { overflow-x: auto; }
+    .section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
     table { width: 100%; border-collapse: collapse; }
     thead th {
-      padding: 8px 14px;
+      padding: 9px 16px;
       text-align: left;
-      font-size: 9.5px;
-      color: var(--dim);
+      font-size: 10px;
+      font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 1px;
+      color: var(--dim);
       border-bottom: 1px solid var(--border);
       white-space: nowrap;
+      background: var(--s1);
     }
     tbody td {
-      padding: 7px 14px;
+      padding: 9px 16px;
       border-bottom: 1px solid var(--border);
       white-space: nowrap;
+      font-size: 12.5px;
     }
     tbody tr:last-child td { border-bottom: none; }
-    tbody tr:hover td { background: var(--surface2); }
+    tbody tr { transition: background .15s; }
+    tbody tr:hover td { background: var(--s2); }
 
-    /* ── Reason badges ────────────────────────────── */
-    .rb {
-      font-size: 9.5px;
-      padding: 2px 7px;
-      border-radius: 3px;
+    .mono { font-family: var(--mono); }
+
+    .badge {
+      display: inline-block;
+      font-size: 10px;
       font-weight: 600;
-      letter-spacing: .5px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      letter-spacing: .3px;
     }
-    .rb-take_profit { background: var(--green-bg);  color: var(--green); }
-    .rb-stop_loss   { background: var(--red-bg);    color: var(--red); }
-    .rb-eod_close   { background: var(--yellow-bg); color: var(--yellow); }
+    .badge-tp  { background: var(--green2); color: var(--green); }
+    .badge-sl  { background: var(--red2);   color: var(--red); }
+    .badge-eod { background: var(--amber2); color: var(--amber); }
 
-    /* ── Utility ──────────────────────────────────── */
-    .green  { color: var(--green); }
-    .red    { color: var(--red); }
-    .yellow { color: var(--yellow); }
-    .blue   { color: var(--blue); }
-    .dim    { color: var(--dim); }
-    .bold   { font-weight: 700; }
-    .empty  { color: var(--dim); text-align: center; padding: 36px 12px; font-size: 12px; }
+    /* ── Utilities ───────────────────────────────────── */
+    .g { color: var(--green); }
+    .r { color: var(--red); }
+    .a { color: var(--amber); }
+    .i { color: var(--indigo); }
+    .m { color: var(--muted); }
+    .d { color: var(--dim); }
+    .fw6 { font-weight: 600; }
+
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 48px 24px;
+      color: var(--dim);
+      font-size: 12px;
+    }
+    .empty-state svg { opacity: .3; }
   </style>
 </head>
 <body>
 
-<div id="err">⚠ Cannot reach the server — is <code>python server.py</code> running?</div>
+<div id="err">
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+  Server unreachable — run <code style="background:rgba(255,255,255,.1);padding:1px 5px;border-radius:3px">python server.py</code>
+</div>
 
 <header>
-  <span class="logo">◈ DAY TRADER</span>
-  <span class="sep">|</span>
+  <span class="logo">◈ TRADER</span>
+  <div class="hdiv"></div>
   <span id="clock">--:--:--</span>
-  <span class="sep">|</span>
-  <span id="market-badge" class="closed">○ MARKET CLOSED</span>
-  <span id="last-scan-badge">last scan: —</span>
+  <div class="hdiv"></div>
+  <div id="market-pill" class="closed">
+    <span class="pulse"></span>
+    <span id="market-txt">MARKET CLOSED</span>
+  </div>
+  <span id="scan-info">—</span>
 </header>
 
-<div class="stats-bar">
-  <div class="stat"><div class="v blue" id="s-capital">$—</div><div class="l">Capital</div></div>
-  <div class="stat"><div class="v" id="s-deployed">$—</div><div class="l">Deployed</div></div>
-  <div class="stat"><div class="v" id="s-positions">—</div><div class="l">Positions</div></div>
-  <div class="stat"><div class="v" id="s-pnl">$—</div><div class="l">Realized PnL</div></div>
-  <div class="stat"><div class="v" id="s-winrate">—%</div><div class="l">Win Rate</div></div>
-  <div class="stat"><div class="v dim" id="s-trades">—</div><div class="l">Trades</div></div>
-</div>
-
-<div class="main">
-  <div class="panel">
-    <div class="panel-head">
-      Open Positions
-      <span id="pos-count" class="dim">0 / 5</span>
-    </div>
-    <div class="panel-body" id="pos-body">
-      <div class="empty">No open positions</div>
-    </div>
+<div class="stats-row">
+  <div class="metric">
+    <div class="metric-val i" id="m-capital">$—</div>
+    <div class="metric-lbl">Capital</div>
   </div>
-
-  <div class="panel">
-    <div class="panel-head">
-      Scan Results
-      <span id="scan-count" class="dim">—</span>
-    </div>
-    <div class="panel-body" id="scan-body">
-      <div class="empty">Waiting for first scan…</div>
-    </div>
+  <div class="metric">
+    <div class="metric-val" id="m-deployed">$—</div>
+    <div class="metric-lbl">Deployed</div>
+  </div>
+  <div class="metric">
+    <div class="metric-val" id="m-positions">—</div>
+    <div class="metric-lbl">Positions</div>
+  </div>
+  <div class="metric">
+    <div class="metric-val" id="m-pnl">$—</div>
+    <div class="metric-lbl">Realized P&L</div>
+  </div>
+  <div class="metric">
+    <div class="metric-val" id="m-winrate">—%</div>
+    <div class="metric-lbl">Win Rate</div>
+  </div>
+  <div class="metric">
+    <div class="metric-val d" id="m-trades">—</div>
+    <div class="metric-lbl">Total Trades</div>
   </div>
 </div>
 
-<div class="trades-section">
-  <div class="panel-head" style="padding: 8px 16px; border-bottom: 1px solid var(--border);">
-    Recent Closed Trades
-    <span id="trades-summary" class="dim"></span>
+<div class="grid-main">
+  <div class="pane">
+    <div class="pane-head">
+      <span class="pane-title">Open Positions</span>
+      <span class="pane-badge" id="pos-count">0 / —</span>
+    </div>
+    <div class="pane-body" id="pos-body">
+      <div class="empty-state">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        No open positions
+      </div>
+    </div>
+  </div>
+
+  <div class="pane">
+    <div class="pane-head">
+      <span class="pane-title">Scan Results</span>
+      <span class="pane-badge" id="scan-count">—</span>
+    </div>
+    <div class="pane-body" id="scan-body">
+      <div class="empty-state">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        Waiting for first scan…
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="trades-wrap">
+  <div class="section-head">
+    <span class="pane-title">Recent Closed Trades</span>
+    <span class="d" id="trades-summary" style="font-size:11px"></span>
   </div>
   <table>
     <thead>
       <tr>
-        <th>Ticker</th>
-        <th>Type</th>
-        <th>Entry</th>
-        <th>Exit</th>
-        <th>PnL</th>
-        <th>PnL %</th>
-        <th>Reason</th>
-        <th>Opened</th>
-        <th>Closed</th>
+        <th>Ticker</th><th>Type</th><th>Entry</th><th>Exit</th>
+        <th>P&L</th><th>P&L %</th><th>Result</th><th>Opened</th><th>Closed</th>
       </tr>
     </thead>
     <tbody id="trades-body">
-      <tr><td colspan="9" class="empty">No closed trades yet</td></tr>
+      <tr><td colspan="9"><div class="empty-state">No closed trades yet</div></td></tr>
     </tbody>
   </table>
 </div>
 
 <script>
 const $ = id => document.getElementById(id);
+const API = '';
 
-function money(n, sign = false) {
+// ── Formatting ──────────────────────────────────────────────────────────────
+function usd(n, sign = false) {
   if (n == null) return '—';
-  const abs = Math.abs(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  return (sign && n >= 0 ? '+' : sign && n < 0 ? '-' : n < 0 ? '-' : '') + '$' + abs;
+  const s = Math.abs(n).toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+  return (sign ? (n >= 0 ? '+' : '-') : (n < 0 ? '-' : '')) + '$' + s;
 }
 function pct(n, sign = false) {
   if (n == null) return '—';
   return (sign && n >= 0 ? '+' : '') + n.toFixed(2) + '%';
 }
-function cls(n) { return n >= 0 ? 'green' : 'red'; }
-function scoreColor(s) {
-  return s >= 65 ? '#1adb6e' : s >= 45 ? '#f5a623' : '#f04c4c';
+function pc(n)  { return n >= 0 ? 'g' : 'r'; }
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+// ── Score ring (SVG arc) ────────────────────────────────────────────────────
+function scoreRing(score) {
+  const r = 14, cx = 16, cy = 16;
+  const c = 2 * Math.PI * r;
+  const fill = c * (score / 100);
+  const color = score >= 65 ? '#34d399' : score >= 45 ? '#fbbf24' : '#f87171';
+  return `<svg class="score-ring" width="32" height="32" viewBox="0 0 32 32">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="3"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="3"
+      stroke-dasharray="${fill} ${c}" stroke-dashoffset="${c * 0.25}"
+      stroke-linecap="round" style="transition:stroke-dasharray .4s"/>
+    <text x="${cx}" y="${cy}" dominant-baseline="central" text-anchor="middle"
+      fill="${color}" font-family="JetBrains Mono,monospace" font-size="8" font-weight="600">${score}</text>
+  </svg>`;
 }
 
-// ── Update functions ────────────────────────────────────────────────────────
+// ── Price track bar ─────────────────────────────────────────────────────────
+function priceTrack(p) {
+  const range = p.take_profit - p.stop_loss;
+  if (range <= 0) return '';
+  const ep = clamp((p.entry_price   - p.stop_loss) / range * 100, 0, 100);
+  const np = clamp((p.current_price - p.stop_loss) / range * 100, 0, 100);
+  return `
+  <div class="price-track">
+    <div class="price-track-labels">
+      <span class="r">SL $${p.stop_loss.toFixed(2)}</span>
+      <span class="g">TP $${p.take_profit.toFixed(2)}</span>
+    </div>
+    <div class="price-track-bar">
+      <div class="track-fill" style="width:${np}%"></div>
+      <div class="track-entry" style="left:${ep}%"></div>
+      <div class="track-dot" style="left:${np}%"></div>
+    </div>
+  </div>`;
+}
 
-function updateHeader(s) {
+// ── Renderers ───────────────────────────────────────────────────────────────
+function renderHeader(s) {
   $('clock').textContent = s.time + ' ' + s.timezone;
-  const b = $('market-badge');
-  if (s.market_open) {
-    b.textContent = '● MARKET OPEN';
-    b.className = 'open';
-  } else {
-    b.textContent = '○ MARKET CLOSED';
-    b.className = 'closed';
-  }
-  $('last-scan-badge').textContent = s.last_scan_time ? 'last scan: ' + s.last_scan_time : 'last scan: —';
+  const pill = $('market-pill');
+  $('market-txt').textContent = s.market_open ? 'MARKET OPEN' : 'MARKET CLOSED';
+  pill.className = s.market_open ? 'open' : 'closed';
+  $('scan-info').textContent = s.last_scan_time ? 'last scan ' + s.last_scan_time : '';
 }
 
-function updateStats(s, st) {
-  $('s-capital').textContent  = '$' + s.capital.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  $('s-deployed').textContent = money(s.capital_deployed);
-  $('s-positions').textContent = s.position_count + ' / ' + s.max_positions;
+function renderStats(s, st) {
+  $('m-capital').textContent  = usd(s.capital);
+  $('m-deployed').textContent = usd(s.capital_deployed);
+  $('m-positions').textContent = s.position_count + ' / ' + s.max_positions;
 
   const pnl = st.total_pnl || 0;
-  $('s-pnl').textContent = money(pnl, true);
-  $('s-pnl').className = 'v ' + cls(pnl);
+  const pEl = $('m-pnl');
+  pEl.textContent = usd(pnl, true);
+  pEl.className = 'metric-val ' + pc(pnl);
 
   const wr = st.win_rate || 0;
-  $('s-winrate').textContent = wr.toFixed(1) + '%';
-  $('s-winrate').className = 'v ' + cls(wr - 50);
+  const wEl = $('m-winrate');
+  wEl.textContent = wr.toFixed(1) + '%';
+  wEl.className = 'metric-val ' + pc(wr - 50);
 
-  $('s-trades').textContent = st.total_trades || '0';
+  $('m-trades').textContent = st.total_trades || '0';
 }
 
-function updatePositions(positions, maxPos) {
+function renderPositions(positions, maxPos) {
   $('pos-count').textContent = positions.length + ' / ' + maxPos;
-
   if (!positions.length) {
-    $('pos-body').innerHTML = '<div class="empty">No open positions</div>';
+    $('pos-body').innerHTML = `<div class="empty-state">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      No open positions</div>`;
     return;
   }
-
   $('pos-body').innerHTML = positions.map(p => {
-    const dir   = p.current_price >= p.entry_price ? '▲' : '▼';
-    const c     = cls(p.unrealized_pnl);
-    const sign  = p.unrealized_pnl >= 0 ? '+' : '';
+    const dir = p.current_price >= p.entry_price ? '▲' : '▼';
+    const c   = pc(p.unrealized_pnl);
+    const sign = p.unrealized_pnl >= 0 ? '+' : '';
     return `
     <div class="pos-card">
-      <div class="pos-top">
+      <div class="pos-header">
         <span class="pos-ticker">${p.ticker}</span>
-        <span class="tag">${p.asset_type}</span>
-        <span class="pos-upnl ${c}">${sign}${money(p.unrealized_pnl)} (${sign}${pct(p.unrealized_pnl_pct)})</span>
+        <span class="pos-type">${p.asset_type}</span>
+        <span class="pos-pnl ${c}">${sign}${usd(p.unrealized_pnl)} <span style="font-size:11px;font-weight:400">(${sign}${pct(p.unrealized_pnl_pct)})</span></span>
       </div>
-      <div class="pos-row">
-        <div class="pos-cell"><div class="lbl">Entry</div><div class="val">$${p.entry_price.toFixed(2)}</div></div>
-        <div class="pos-cell"><div class="lbl">Now ${dir}</div><div class="val ${c}">$${p.current_price.toFixed(2)}</div></div>
-        <div class="pos-cell"><div class="lbl">Qty</div><div class="val">${p.quantity.toFixed(3)}</div></div>
-        <div class="pos-cell"><div class="lbl">Since</div><div class="val dim">${p.entry_time}</div></div>
+      <div class="pos-grid">
+        <div>
+          <div class="pos-cell-lbl">Entry</div>
+          <div class="pos-cell-val mono">$${p.entry_price.toFixed(2)}</div>
+        </div>
+        <div>
+          <div class="pos-cell-lbl">Now ${dir}</div>
+          <div class="pos-cell-val mono ${c}">$${p.current_price.toFixed(2)}</div>
+        </div>
+        <div>
+          <div class="pos-cell-lbl">Qty</div>
+          <div class="pos-cell-val mono">${p.quantity.toFixed(3)}</div>
+        </div>
+        <div>
+          <div class="pos-cell-lbl">Since</div>
+          <div class="pos-cell-val d">${p.entry_time}</div>
+        </div>
       </div>
-      <div class="pos-levels">
-        <span class="red">▼ Stop $${p.stop_loss.toFixed(2)}</span>
-        &nbsp;&nbsp;
-        <span class="green">▲ Target $${p.take_profit.toFixed(2)}</span>
-      </div>
+      ${priceTrack(p)}
     </div>`;
   }).join('');
 }
 
-function updateScans(scans) {
+function renderScans(scans) {
   $('scan-count').textContent = scans.length ? scans.length + ' symbols' : '—';
-
   if (!scans.length) {
-    $('scan-body').innerHTML = '<div class="empty">Waiting for first scan…</div>';
+    $('scan-body').innerHTML = `<div class="empty-state">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      Waiting for first scan…</div>`;
     return;
   }
-
   $('scan-body').innerHTML = scans.map((s, i) => {
-    const color  = scoreColor(s.score);
-    const trendC = s.trend === 'bullish' ? 'green' : s.trend === 'bearish' ? 'red' : 'yellow';
-    let signals  = [];
+    const trendCls = s.trend === 'bullish' ? 'trend-bullish' : s.trend === 'bearish' ? 'trend-bearish' : 'trend-neutral';
+    let signals = [];
     try { signals = JSON.parse(s.signals || '[]'); } catch(_) {}
-    const detail = [
-      '$' + parseFloat(s.price).toFixed(2),
-      'RSI ' + parseFloat(s.rsi).toFixed(0),
-      'Vol ' + parseFloat(s.volume_ratio).toFixed(1) + 'x',
-      ...signals.slice(0, 2),
-    ].join(' · ');
-
+    const detail = [`$${parseFloat(s.price).toFixed(2)}`, `RSI ${parseFloat(s.rsi).toFixed(0)}`, `Vol ${parseFloat(s.volume_ratio).toFixed(1)}x`, ...signals.slice(0,2)].join(' · ');
+    const color = s.score >= 65 ? '#34d399' : s.score >= 45 ? '#fbbf24' : '#f87171';
     return `
     <div class="scan-row">
-      <div class="scan-top">
-        <span class="scan-num dim">${i + 1}</span>
-        <span class="scan-tick">${s.ticker}</span>
-        <div class="score-bar"><div class="score-fill" style="width:${s.score}%;background:${color}"></div></div>
-        <span class="score-num" style="color:${color}">${s.score}</span>
-        <span class="scan-trend ${trendC}">${s.trend}</span>
+      <span class="scan-rank">${i+1}</span>
+      ${scoreRing(s.score)}
+      <div class="scan-info">
+        <div class="scan-top">
+          <span class="scan-ticker">${s.ticker}</span>
+          <span class="scan-trend ${trendCls}">${s.trend}</span>
+        </div>
+        <div class="scan-detail">${detail}</div>
       </div>
-      <div class="scan-detail">${detail}</div>
     </div>`;
   }).join('');
 }
 
-function updateTrades(trades, stats) {
+function renderTrades(trades, stats) {
   if (stats.total_trades) {
     $('trades-summary').textContent =
-      `best ${money(stats.best_trade, true)} · worst ${money(stats.worst_trade, true)} · avg ${pct(stats.avg_pnl_pct, true)}`;
+      `best ${usd(stats.best_trade,true)} · worst ${usd(stats.worst_trade,true)} · avg ${pct(stats.avg_pnl_pct,true)}`;
   }
-
   if (!trades.length) {
-    $('trades-body').innerHTML = '<tr><td colspan="9" class="empty">No closed trades yet</td></tr>';
+    $('trades-body').innerHTML = '<tr><td colspan="9"><div class="empty-state">No closed trades yet</div></td></tr>';
     return;
   }
-
   $('trades-body').innerHTML = trades.map(t => {
-    const c    = cls(t.pnl || 0);
+    const c = pc(t.pnl || 0);
     const sign = (t.pnl || 0) >= 0 ? '+' : '';
-    return `
-    <tr>
-      <td class="bold">${t.ticker}</td>
-      <td class="dim">${t.asset_type}</td>
-      <td>$${t.entry_price.toFixed(2)}</td>
-      <td>${t.exit_price != null ? '$' + t.exit_price.toFixed(2) : '—'}</td>
-      <td class="${c}">${t.pnl != null ? sign + money(t.pnl) : '—'}</td>
-      <td class="${c}">${t.pnl_pct != null ? sign + t.pnl_pct.toFixed(2) + '%' : '—'}</td>
-      <td><span class="rb rb-${t.exit_reason}">${t.exit_reason || '—'}</span></td>
-      <td class="dim">${t.entry_time}</td>
-      <td class="dim">${t.exit_time}</td>
+    const rb = t.exit_reason === 'take_profit' ? 'badge-tp' : t.exit_reason === 'stop_loss' ? 'badge-sl' : 'badge-eod';
+    const label = t.exit_reason === 'take_profit' ? 'Target' : t.exit_reason === 'stop_loss' ? 'Stop' : 'EOD';
+    return `<tr>
+      <td class="mono fw6">${t.ticker}</td>
+      <td class="d">${t.asset_type}</td>
+      <td class="mono">$${t.entry_price.toFixed(2)}</td>
+      <td class="mono">${t.exit_price != null ? '$' + t.exit_price.toFixed(2) : '—'}</td>
+      <td class="mono ${c}">${t.pnl != null ? sign + usd(t.pnl) : '—'}</td>
+      <td class="mono ${c}">${t.pnl_pct != null ? sign + t.pnl_pct.toFixed(2) + '%' : '—'}</td>
+      <td><span class="badge ${rb}">${label}</span></td>
+      <td class="d">${t.entry_time}</td>
+      <td class="d">${t.exit_time}</td>
     </tr>`;
   }).join('');
 }
 
-// ── Polling loop ────────────────────────────────────────────────────────────
-
+// ── Poll ────────────────────────────────────────────────────────────────────
 async function refresh() {
   try {
     const [status, positions, scans, trades, stats] = await Promise.all([
-      fetch('/api/status').then(r => r.json()),
-      fetch('/api/positions').then(r => r.json()),
-      fetch('/api/scans').then(r => r.json()),
-      fetch('/api/trades').then(r => r.json()),
-      fetch('/api/stats').then(r => r.json()),
+      fetch(`${API}/api/status`).then(r => r.json()),
+      fetch(`${API}/api/positions`).then(r => r.json()),
+      fetch(`${API}/api/scans`).then(r => r.json()),
+      fetch(`${API}/api/trades`).then(r => r.json()),
+      fetch(`${API}/api/stats`).then(r => r.json()),
     ]);
-    $('err').style.display = 'none';
-    updateHeader(status);
-    updateStats(status, stats);
-    updatePositions(positions, status.max_positions);
-    updateScans(scans);
-    updateTrades(trades, stats);
-  } catch (e) {
-    $('err').style.display = 'block';
+    $('err').classList.remove('show');
+    renderHeader(status);
+    renderStats(status, stats);
+    renderPositions(positions, status.max_positions);
+    renderScans(scans);
+    renderTrades(trades, stats);
+  } catch(e) {
+    $('err').classList.add('show');
   }
 }
 

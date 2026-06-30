@@ -32,7 +32,7 @@ ET = pytz.timezone("America/New_York")
 
 class TradingBot:
     def __init__(self):
-        self.ledger = Ledger("ledger.db")
+        self.ledger = Ledger(config.DB_PATH)
         self.portfolio = Portfolio(self.ledger)
         self.etoro: Optional[EToroClient] = (
             EToroClient(config.ETORO_PUBLIC_KEY, config.ETORO_PRIVATE_KEY)

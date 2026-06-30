@@ -50,6 +50,9 @@ BB_PERIOD = 20
 BB_STD = 2.0
 VOLUME_LOOKBACK = 20
 
+# --- Database ---
+DB_PATH = os.getenv("DB_PATH", "ledger.db")
+
 # --- eToro ---
 # Both keys are generated together in Settings → Trading → API Key Management
 ETORO_PUBLIC_KEY  = os.getenv("ETORO_PUBLIC_KEY", "")   # x-api-key header

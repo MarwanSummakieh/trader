@@ -29,7 +29,7 @@ from src.portfolio import Portfolio
 app = FastAPI(title="Day Trader Bot", docs_url=None, redoc_url=None)
 ET = pytz.timezone("America/New_York")
 
-_ledger = Ledger("ledger.db")
+_ledger = Ledger(config.DB_PATH)
 _portfolio = Portfolio(_ledger)
 _etoro = (
     EToroClient(config.ETORO_PUBLIC_KEY, config.ETORO_PRIVATE_KEY)
