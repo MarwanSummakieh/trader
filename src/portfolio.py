@@ -16,9 +16,14 @@ logger = logging.getLogger(__name__)
 class Portfolio:
     def __init__(self, ledger: Ledger, starting_capital: float = None):
         self.ledger = ledger
-        self.capital = starting_capital or config.STARTING_CAPITAL
+        self._starting_capital = starting_capital or config.STARTING_CAPITAL
 
     # ── Derived state ──────────────────────────────────────────────────────
+
+    @property
+    def capital(self) -> float:
+        """Starting capital + all realized PnL to date."""
+        return self._starting_capital + self.ledger.get_stats()["total_pnl"]
 
     @property
     def open_trades(self) -> list[Trade]:

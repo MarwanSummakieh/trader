@@ -64,12 +64,11 @@ def status():
     stats = _ledger.get_stats()
     scans = _ledger.get_scan_results(1)
     last_scan = scans[0]["scanned_at"][11:16] if scans else None
-    current_capital = config.STARTING_CAPITAL + stats["total_pnl"]
     return {
         "time": datetime.now(ET).strftime("%H:%M:%S"),
         "timezone": "ET",
         "market_open": _market_open(),
-        "capital": round(current_capital, 2),
+        "capital": round(_portfolio.capital, 2),
         "starting_capital": config.STARTING_CAPITAL,
         "capital_deployed": round(_portfolio.capital_deployed, 2),
         "available_capital": round(_portfolio.available_capital, 2),
