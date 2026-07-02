@@ -101,13 +101,17 @@ class TradingBot:
     def run_eod_close(self):
         trades = [t for t in self.portfolio.open_trades if t.asset_type == "stock"]
         if not trades:
+            self._eod_closed_today = True
             return
         console.print("[bold red]⏰ EOD — liquidating all stock positions[/bold red]")
         prices = get_current_prices([t.ticker for t in trades])
         closed = self.portfolio.eod_close_stocks(prices)
         for t in closed:
             _print_close(t)
-        self._eod_closed_today = True
+        # Only mark done once every stock position actually closed — positions
+        # skipped for missing prices are retried on the next loop iteration.
+        still_open = [t for t in self.portfolio.open_trades if t.asset_type == "stock"]
+        self._eod_closed_today = not still_open
 
     # ── Display ────────────────────────────────────────────────────────────
 
@@ -227,8 +231,8 @@ class TradingBot:
             try:
                 now = self._now()
 
-                # Reset EOD flag at midnight
-                if now.hour < 9 and now.minute < 30:
+                # Reset EOD flag before the next session opens
+                if now.time() < config.MARKET_OPEN:
                     self._eod_closed_today = False
 
                 # EOD stock liquidation
@@ -236,10 +240,11 @@ class TradingBot:
                     self.run_eod_close()
 
                 # Determine which asset classes to scan this cycle
+                crypto_universe = CRYPTO if config.ENABLE_CRYPTO else []
                 if self._market_open() and not self._past_eod():
-                    stocks_to_scan, crypto_to_scan = STOCKS, CRYPTO
+                    stocks_to_scan, crypto_to_scan = STOCKS, crypto_universe
                 else:
-                    stocks_to_scan, crypto_to_scan = [], CRYPTO  # crypto runs 24/7
+                    stocks_to_scan, crypto_to_scan = [], crypto_universe  # crypto runs 24/7
 
                 if self._due(self._last_scan, config.SCAN_INTERVAL_SECS):
                     self.run_scan(stocks_to_scan, crypto_to_scan)

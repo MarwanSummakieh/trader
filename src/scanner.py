@@ -5,13 +5,17 @@ then filters and ranks results.
 
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from typing import Optional
 
+import pytz
+
 from .analyzer import analyze, Analysis
-from .data import get_intraday, get_daily
+from .data import get_intraday, get_daily, in_earnings_window
 import config
 
 logger = logging.getLogger(__name__)
+ET = pytz.timezone("America/New_York")
 
 
 def _scan_one(ticker: str, asset_type: str) -> Optional[Analysis]:
@@ -50,20 +54,36 @@ def scan_universe(
 def get_buy_candidates(
     analyses: list[Analysis],
     existing_tickers: set[str],
+    now: Optional[datetime] = None,
 ) -> list[Analysis]:
     """
-    Filter analyses down to actionable buy signals:
-    - Score ≥ MIN_SCORE
-    - RSI not overbought
-    - Volume above threshold
+    Backtest-validated momentum entry (2026-07-02, 59d/5m, train+holdout):
+    - Intraday EMA stack aligned: price > EMA9 > EMA21
+    - Daily ADX > ENTRY_ADX_MIN (trending, not chopping)
+    - RSI in [ENTRY_RSI_MIN, ENTRY_RSI_MAX) — momentum, not blow-off
+    - Regime: price above daily EMA50 (unless disabled)
+    - Stocks: entries before STOCK_ENTRY_CUTOFF ET only (edge needs hours
+      of runway before the 15:45 EOD liquidation)
     - Not already in a position
-    - Long-only (bullish or neutral setup)
+
+    The composite score is deliberately NOT used here — it showed no
+    predictive power in backtesting. It remains for display/analysis only.
     """
-    return [
+    now = now or datetime.now(ET)
+    candidates = [
         a for a in analyses
-        if a.score >= config.MIN_SCORE
-        and a.rsi < config.RSI_OVERBOUGHT
-        and a.volume_ratio >= config.MIN_VOLUME_RATIO
-        and a.trend in ("bullish", "neutral")
+        if a.price > a.ema9 > a.ema21
+        and a.adx_val > config.ENTRY_ADX_MIN
+        and config.ENTRY_RSI_MIN <= a.rsi < config.ENTRY_RSI_MAX
+        and (a.regime_ok or not config.REQUIRE_DAILY_UPTREND)
+        and not (a.asset_type == "stock" and now.time() >= config.STOCK_ENTRY_CUTOFF)
         and a.ticker not in existing_tickers
+    ]
+    if not config.EARNINGS_FILTER:
+        return candidates
+    # Earnings check last — it's a (cached) network call, so only survivors
+    # pay for it. Entries on reaction days tested at 18% win rate / -0.41R.
+    return [
+        a for a in candidates
+        if a.asset_type != "stock" or not in_earnings_window(a.ticker, now.date())
     ]

@@ -9,8 +9,8 @@ Usage:
     python main.py --trades      # print last 20 closed trades
     python main.py --capital 50000  # override starting capital
 
-Set your eToro API key (optional, for portfolio context):
-    export ETORO_API_KEY=<your key>
+Set your eToro API keys (optional, for portfolio context) in .env:
+    ETORO_PUBLIC_KEY / ETORO_PRIVATE_KEY
 """
 
 import argparse
@@ -90,7 +90,7 @@ def main():
         from src.scanner import scan_universe
         from src.universe import CRYPTO, STOCKS
         console.print("[cyan]Running single scan...[/cyan]")
-        analyses = scan_universe(STOCKS, CRYPTO)
+        analyses = scan_universe(STOCKS, CRYPTO if config.ENABLE_CRYPTO else [])
         console.print(f"\n[bold]Top 20 Opportunities[/bold] ({len(analyses)} analysed)\n")
         for i, a in enumerate(analyses[:20], 1):
             sc_color = "green" if a.score >= 65 else "yellow" if a.score >= 45 else "red"

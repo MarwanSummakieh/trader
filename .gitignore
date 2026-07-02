@@ -1,0 +1,17 @@
+# Secrets — never commit; rotate any keys already in git history
+.env
+
+# Backtest data cache
+cache/
+
+# Runtime state
+ledger.db
+ledger.db-wal
+ledger.db-shm
+bot.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/

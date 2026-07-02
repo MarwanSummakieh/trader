@@ -49,6 +49,7 @@ class Analysis:
     adx_val: float
     bb_pct: float             # 0 = at lower band, 1 = at upper band
     trend: str                # "bullish" | "bearish" | "neutral"
+    regime_ok: bool = True    # price above daily EMA50 (long regime gate)
 
     timestamp: datetime = field(default_factory=lambda: datetime.now(ET))
 
@@ -80,9 +81,33 @@ def analyze(
     intra = intraday_df.copy()
     daily = daily_df.copy()
 
-    price = float(intra["Close"].iloc[-1])
-    if price < config.MIN_PRICE:
+    now = datetime.now(ET)
+
+    # Drop the in-progress bar: indicators on a partial candle repaint, and its
+    # volume is systematically understated. Evaluate the last *completed* bar.
+    if len(intra) >= 2:
+        idx = intra.index.tz_convert(ET)
+        bar_interval = (idx[-1] - idx[-2])
+        if now < idx[-1] + bar_interval:
+            intra = intra.iloc[:-1]
+    if len(intra) < 30:
         return None
+
+    price = float(intra["Close"].iloc[-1])
+
+    if asset_type == "stock":
+        # Penny-stock and liquidity filters (crypto is exempt — many majors
+        # trade under $5 and volume units aren't comparable to shares).
+        if price < config.MIN_PRICE:
+            return None
+        if float(daily["Volume"].tail(20).mean()) < config.MIN_AVG_DAILY_VOLUME:
+            return None
+        # Stale-data guard: on holidays/halts yfinance returns old bars and the
+        # bot would otherwise trade on them. Only enforced for stocks — the bot
+        # only scans stocks while the market is open, so fresh bars must exist.
+        last_bar_age = now - intra.index.tz_convert(ET)[-1]
+        if last_bar_age.total_seconds() > config.MAX_DATA_AGE_MINUTES * 60:
+            return None
 
     # ── Intraday indicators ───────────────────────────────────────────────
     intra["rsi"] = ind.rsi(intra["Close"], config.RSI_PERIOD)
@@ -116,9 +141,6 @@ def analyze(
     def _f(series: pd.Series, fallback: float) -> float:
         v = series.iloc[-1]
         return float(v) if pd.notna(v) else fallback
-
-    last = intra.iloc[-1]
-    d_last = daily.iloc[-1]
 
     rsi_val = _f(intra["rsi"], 50.0)
     macd_hist_val = _f(intra["macd_hist"], 0.0)
@@ -154,9 +176,9 @@ def analyze(
     signals = _signals(intra, rsi_val, macd_hist_val, vol_ratio_val,
                        price, ema9_val, ema21_val, vwap_val, adx_val)
 
-    # ── Levels: ATR-based stop, 2:1 R/R target ───────────────────────────
+    # ── Levels: ATR-based stop, R-multiple target ─────────────────────────
     stop_loss = price - max(atr_val * 1.5, price * config.STOP_LOSS_PCT)
-    take_profit = price + (price - stop_loss) * 2.0
+    take_profit = price + (price - stop_loss) * config.TAKE_PROFIT_R_MULT
 
     return Analysis(
         ticker=ticker, asset_type=asset_type, price=price,
@@ -165,6 +187,9 @@ def analyze(
         rsi=rsi_val, macd_hist=macd_hist_val, volume_ratio=vol_ratio_val,
         atr=atr_val, ema9=ema9_val, ema21=ema21_val,
         vwap_val=vwap_val, adx_val=adx_val, bb_pct=bb_pct, trend=trend,
+        # NaN EMA50 falls back to price above, making this False — blocking
+        # entries when the daily trend is unknown is the safe direction.
+        regime_ok=price > ema50_val,
     )
 
 
@@ -256,7 +281,7 @@ def _signals(df, rsi, macd_hist, vol_ratio, price, ema9, ema21, vwap, adx) -> li
     # RSI
     if 50 <= rsi <= 65:
         out.append(f"RSI {rsi:.0f} (bullish zone)")
-    elif rsi < 35:
+    elif rsi < config.RSI_OVERSOLD:
         out.append(f"RSI {rsi:.0f} (oversold bounce?)")
 
     # ADX

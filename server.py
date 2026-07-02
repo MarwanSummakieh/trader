@@ -10,7 +10,6 @@ Reads from the same ledger.db the bot writes to — run both simultaneously.
 
 import os
 import sys
-import time as _time
 from datetime import datetime
 from typing import Optional
 
@@ -36,18 +35,8 @@ _etoro = (
     if config.ETORO_PUBLIC_KEY else None
 )
 
-# Cache live prices for 30 s to avoid hammering yfinance on every page refresh
-_price_cache: dict[str, float] = {}
-_price_cache_ts: float = 0.0
-_PRICE_TTL = 30.0
-
-
-def _cached_prices(tickers: list[str]) -> dict[str, float]:
-    global _price_cache, _price_cache_ts
-    if _time.time() - _price_cache_ts > _PRICE_TTL and tickers:
-        _price_cache = get_current_prices(tickers)
-        _price_cache_ts = _time.time()
-    return _price_cache
+# Live prices are TTL-cached inside src.data.get_current_prices, so page
+# refreshes don't hammer yfinance.
 
 
 def _market_open() -> bool:
@@ -83,7 +72,7 @@ def positions():
     trades = _portfolio.open_trades
     if not trades:
         return []
-    prices = _cached_prices([t.ticker for t in trades])
+    prices = get_current_prices([t.ticker for t in trades])
     return [
         {
             "id": t.id,

@@ -7,7 +7,7 @@ import json
 import logging
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 import pytz
@@ -45,6 +45,10 @@ class Ledger:
     def __init__(self, db_path: str = "ledger.db"):
         self._conn = sqlite3.connect(db_path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
+        # WAL lets the dashboard read while the bot writes without
+        # "database is locked" errors (two processes share this file).
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("PRAGMA busy_timeout=5000")
         self._init()
 
     def _init(self):
@@ -164,7 +168,7 @@ class Ledger:
         wins = [p for p in pnls if p > 0]
         return {
             "total_trades": len(pnls),
-            "win_rate": len(wins) / len(pnls) * 100,
+            "win_rate": len(wins) / len(pnls) * 100 if pnls else 0.0,
             "total_pnl": sum(pnls),
             "avg_pnl_pct": sum(pnl_pcts) / len(pnl_pcts) if pnl_pcts else 0.0,
             "best_trade": max(pnls) if pnls else 0.0,
@@ -172,10 +176,16 @@ class Ledger:
         }
 
 
+    # History is retained (not overwritten) so score-vs-outcome analysis is
+    # possible later; rows older than the retention window are purged.
+    SCAN_RETENTION_DAYS = 30
+
     def save_scan_results(self, analyses: list) -> None:
-        """Replace scan results table with latest sweep."""
-        now = datetime.now(ET).isoformat()
-        self._conn.execute("DELETE FROM scan_results")
+        """Append the latest sweep; purge rows past the retention window."""
+        now_dt = datetime.now(ET)
+        now = now_dt.isoformat()
+        cutoff = (now_dt - timedelta(days=self.SCAN_RETENTION_DAYS)).isoformat()
+        self._conn.execute("DELETE FROM scan_results WHERE scanned_at < ?", (cutoff,))
         for a in analyses:
             self._conn.execute(
                 """INSERT INTO scan_results
@@ -188,8 +198,12 @@ class Ledger:
         self._conn.commit()
 
     def get_scan_results(self, limit: int = 25) -> list[dict]:
+        """Top results from the most recent sweep only."""
         rows = self._conn.execute(
-            "SELECT * FROM scan_results ORDER BY score DESC LIMIT ?", (limit,)
+            """SELECT * FROM scan_results
+               WHERE scanned_at = (SELECT MAX(scanned_at) FROM scan_results)
+               ORDER BY score DESC LIMIT ?""",
+            (limit,),
         ).fetchall()
         return [dict(r) for r in rows]
 
