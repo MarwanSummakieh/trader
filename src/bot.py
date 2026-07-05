@@ -18,6 +18,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from .broker import make_broker
 from .data import get_current_prices, EToroClient
 from .ledger import Ledger, Trade
 from .portfolio import Portfolio
@@ -33,7 +34,8 @@ ET = pytz.timezone("America/New_York")
 class TradingBot:
     def __init__(self):
         self.ledger = Ledger(config.DB_PATH)
-        self.portfolio = Portfolio(self.ledger)
+        self.broker = make_broker()
+        self.portfolio = Portfolio(self.ledger, broker=self.broker)
         self.etoro: Optional[EToroClient] = (
             EToroClient(config.ETORO_PUBLIC_KEY, config.ETORO_PRIVATE_KEY)
             if config.ETORO_PUBLIC_KEY else None
@@ -120,7 +122,8 @@ class TradingBot:
         now = self._now()
         market_tag = "[green]OPEN[/green]" if self._market_open() else "[dim]CLOSED[/dim]"
         console.print(Panel(
-            f"[bold]Day Trading Bot[/bold]  {now.strftime('%Y-%m-%d %H:%M:%S')} ET  |  Market: {market_tag}",
+            f"[bold]Day Trading Bot[/bold]  {now.strftime('%Y-%m-%d %H:%M:%S')} ET  |  "
+            f"Market: {market_tag}  |  Exec: {self.broker.name}",
             style="bold blue", expand=False,
         ))
 
@@ -218,6 +221,14 @@ class TradingBot:
 
     def run(self):
         console.print("[bold green]Day Trading Bot — starting up[/bold green]")
+        console.print(f"Execution: [bold]{self.broker.name}[/bold]")
+        if hasattr(self.broker, "test_connection"):
+            ok, msg = self.broker.test_connection()
+            style = "green" if ok else "bold red"
+            console.print(f"[{style}]{'✓' if ok else '✗'} {msg}[/{style}]")
+            if not ok:
+                console.print("[bold red]Broker unreachable — exiting.[/bold red]")
+                return
         if self.etoro:
             ok, msg = self.etoro.test_connection()
             if ok:

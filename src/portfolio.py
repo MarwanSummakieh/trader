@@ -7,6 +7,7 @@ import logging
 from typing import Optional
 
 from .analyzer import Analysis
+from .broker import Broker, SimBroker
 from .ledger import Ledger, Trade
 import config
 
@@ -14,8 +15,10 @@ logger = logging.getLogger(__name__)
 
 
 class Portfolio:
-    def __init__(self, ledger: Ledger, starting_capital: float = None):
+    def __init__(self, ledger: Ledger, broker: Optional[Broker] = None,
+                 starting_capital: float = None):
         self.ledger = ledger
+        self.broker = broker or SimBroker()
         self._starting_capital = starting_capital or config.STARTING_CAPITAL
 
     # ── Derived state ──────────────────────────────────────────────────────
@@ -64,28 +67,36 @@ class Portfolio:
         if analysis.ticker in self.open_tickers:
             return None
 
-        # Fill above the signal price to model spread/slippage/fees.
-        entry_fill = analysis.entry * (1 + config.FEE_SLIPPAGE_PCT)
-
+        # Size against the expected fill (signal price + slippage); the
+        # broker reports the actual fill price/qty it achieved.
+        expected_fill = analysis.entry * (1 + config.FEE_SLIPPAGE_PCT)
         margin = min(
             self.capital * config.POSITION_SIZE_PCT,
             self.available_capital * 0.95,
         )
-        quantity = margin * config.LEVERAGE / entry_fill
+        quantity = margin * config.LEVERAGE / expected_fill
+
+        fill = self.broker.open(
+            analysis.ticker, quantity,
+            entry_hint=analysis.entry,
+            stop=analysis.stop_loss, tp=analysis.take_profit,
+        )
+        if fill is None:
+            return None
 
         trade = self.ledger.open_trade(
             ticker=analysis.ticker,
             asset_type=analysis.asset_type,
-            entry_price=entry_fill,
-            quantity=quantity,
+            entry_price=fill.price,
+            quantity=fill.qty,
             stop_loss=analysis.stop_loss,
             take_profit=analysis.take_profit,
             signals=analysis.signals,
         )
         logger.info(
-            "OPEN  %-8s @ $%8.2f  SL $%8.2f  TP $%8.2f  qty %.3f",
-            analysis.ticker, analysis.entry, analysis.stop_loss,
-            analysis.take_profit, quantity,
+            "OPEN  %-8s @ $%8.2f  SL $%8.2f  TP $%8.2f  qty %.3f  [%s]",
+            analysis.ticker, fill.price, analysis.stop_loss,
+            analysis.take_profit, fill.qty, self.broker.name,
         )
         return trade
 
@@ -94,19 +105,40 @@ class Portfolio:
         the target never does — so R is recovered from the target distance."""
         return (trade.take_profit - trade.entry_price) / config.TAKE_PROFIT_R_MULT
 
-    def _close_fill(self, price: float) -> float:
-        """Exit fill below the observed price to model spread/slippage/fees."""
-        return price * (1 - config.FEE_SLIPPAGE_PCT)
-
     def check_exits(self, current_prices: dict[str, float]) -> list[Trade]:
         """
         Close positions that hit stop-loss or take-profit.
         R-based trailing: once gain >= PROFIT_TRAIL_TRIGGER_R * R, the stop
         trails PROFIT_TRAIL_DISTANCE_R * R below the observed price.
         The stop only ever moves up — it never retracts.
+
+        When the broker manages exits (server-side bracket legs), exits the
+        broker already executed are reconciled into the ledger and trailing
+        raises the broker's stop order; the local stop/target/margin-call
+        checks run only for the simulated broker.
         """
         closed: list[Trade] = []
         for trade in self.open_trades:
+            # ── Broker-side exits (authoritative when managed) ─────────────
+            if self.broker.manages_exits:
+                fill = self.broker.detect_exit(trade.ticker)
+                if fill is not None:
+                    reason = fill.reason or "manual_close"
+                    # A stop at/above entry can only be a trailed stop
+                    # (initial stops are strictly below entry).
+                    if reason == "stop_loss" and trade.stop_loss >= trade.entry_price:
+                        reason = "trail_stop"
+                    closed_trade = self.ledger.close_trade(
+                        trade.id, fill.price, reason  # type: ignore[arg-type]
+                    )
+                    logger.info(
+                        "CLOSE %-8s @ $%8.2f  PnL $%+.2f (%+.1f%%)  [%s @ %s]",
+                        trade.ticker, fill.price, closed_trade.pnl or 0,
+                        closed_trade.pnl_pct or 0, reason, self.broker.name,
+                    )
+                    closed.append(closed_trade)
+                    continue
+
             price = current_prices.get(trade.ticker)
             if price is None:
                 logger.warning(
@@ -120,15 +152,21 @@ class Portfolio:
             if r > 0 and gain >= config.PROFIT_TRAIL_TRIGGER_R * r:
                 new_stop = price - config.PROFIT_TRAIL_DISTANCE_R * r
                 if new_stop > trade.stop_loss:
-                    self.ledger.update_stop_loss(trade.id, new_stop)
-                    logger.info(
-                        "TRAIL %-8s  +%.1fR → stop raised $%.2f → $%.2f",
-                        trade.ticker, gain / r, trade.stop_loss, new_stop,
-                    )
-                    # Refresh trade so the stop-loss check below uses the new value
-                    trade = self.ledger.get_trade(trade.id)  # type: ignore[assignment]
+                    # Broker first: the ledger must never claim a tighter stop
+                    # than the one actually resting at the broker.
+                    if self.broker.raise_stop(trade.ticker, new_stop):
+                        self.ledger.update_stop_loss(trade.id, new_stop)
+                        logger.info(
+                            "TRAIL %-8s  +%.1fR → stop raised $%.2f → $%.2f",
+                            trade.ticker, gain / r, trade.stop_loss, new_stop,
+                        )
+                        # Refresh so the stop-loss check below sees the new value
+                        trade = self.ledger.get_trade(trade.id)  # type: ignore[assignment]
 
-            # ── Exit checks ────────────────────────────────────────────────
+            if self.broker.manages_exits:
+                continue   # stop/target execution lives at the broker
+
+            # ── Local exit checks (simulated broker only) ──────────────────
             # Broker liquidation level: loss = MARGIN_CALL_LOSS of committed
             # margin. Far below the stop at leverage 1; binds first only when
             # levered enough that margin runs out before the stop is reached.
@@ -149,8 +187,11 @@ class Portfolio:
             else:
                 continue
 
+            fill = self.broker.close(trade.ticker, price, reason)
+            if fill is None:
+                continue
             closed_trade = self.ledger.close_trade(
-                trade.id, self._close_fill(price), reason  # type: ignore[arg-type]
+                trade.id, fill.price, reason  # type: ignore[arg-type]
             )
             logger.info(
                 "CLOSE %-8s @ $%8.2f  PnL $%+.2f (%+.1f%%)  [%s]",
@@ -162,20 +203,29 @@ class Portfolio:
 
     def eod_close_stocks(self, current_prices: dict[str, float]) -> list[Trade]:
         """Force-close open stock positions (called at 15:45 ET).
-        Positions with no available price are left open (never faked as
+        Positions the broker can't fill are left open (never faked as
         break-even) — the caller retries until none remain."""
         closed: list[Trade] = []
         for trade in self.open_trades:
             if trade.asset_type != "stock":
                 continue
             price = current_prices.get(trade.ticker)
-            if price is None:
+            if price is None and not self.broker.manages_exits:
+                # The simulator needs a price to fill against; a managing
+                # broker liquidates at market without one.
                 logger.warning(
                     "EOD: no price for %s — leaving open, will retry", trade.ticker
                 )
                 continue
+            fill = self.broker.close(trade.ticker, price or 0.0, "eod_close")
+            if fill is None:
+                logger.warning(
+                    "EOD: close failed for %s — leaving open, will retry",
+                    trade.ticker,
+                )
+                continue
             closed_trade = self.ledger.close_trade(
-                trade.id, self._close_fill(price), "eod_close"  # type: ignore[arg-type]
+                trade.id, fill.price, fill.reason or "eod_close"  # type: ignore[arg-type]
             )
             logger.info(
                 "EOD   %-8s @ $%8.2f  PnL $%+.2f (%+.1f%%)",
