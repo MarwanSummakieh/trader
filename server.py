@@ -50,9 +50,13 @@ def _market_open() -> bool:
 
 @app.get("/api/status")
 def status():
-    stats = _ledger.get_stats()
     scans = _ledger.get_scan_results(1)
     last_scan = scans[0]["scanned_at"][11:16] if scans else None
+    open_trades = _portfolio.open_trades
+    unrealized = 0.0
+    if open_trades:
+        prices = get_current_prices([t.ticker for t in open_trades])
+        unrealized = _portfolio.unrealized_pnl(prices)
     return {
         "time": datetime.now(ET).strftime("%H:%M:%S"),
         "timezone": "ET",
@@ -61,6 +65,7 @@ def status():
         "starting_capital": config.STARTING_CAPITAL,
         "capital_deployed": round(_portfolio.capital_deployed, 2),
         "available_capital": round(_portfolio.available_capital, 2),
+        "unrealized_pnl": round(unrealized, 2),
         "position_count": _portfolio.position_count,
         "max_positions": config.MAX_POSITIONS,
         "last_scan_time": last_scan,
@@ -111,8 +116,8 @@ def trades():
             "pnl": round(t.pnl, 2) if t.pnl is not None else None,
             "pnl_pct": round(t.pnl_pct, 2) if t.pnl_pct is not None else None,
             "exit_reason": t.exit_reason,
-            "entry_time": t.entry_time[5:16] if t.entry_time else "—",
-            "exit_time": t.exit_time[5:16] if t.exit_time else "—",
+            "entry_time": t.entry_time[5:16].replace("T", " ") if t.entry_time else "—",
+            "exit_time": t.exit_time[5:16].replace("T", " ") if t.exit_time else "—",
         }
         for t in _ledger.get_recent_trades(40)
     ]
@@ -121,7 +126,11 @@ def trades():
 @app.get("/api/stats")
 def stats():
     s = _ledger.get_stats()
-    return {k: round(v, 2) if isinstance(v, float) else v for k, v in s.items()}
+    out = {k: round(v, 2) if isinstance(v, float) else v for k, v in s.items()}
+    today = _ledger.get_stats_for_day(datetime.now(ET).strftime("%Y-%m-%d"))
+    out["today"] = {k: round(v, 2) if isinstance(v, float) else v
+                    for k, v in today.items()}
+    return out
 
 
 # Static frontend — must be registered last
