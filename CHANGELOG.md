@@ -22,6 +22,14 @@
   (type/exit/%/opened) to fit a 375px screen without horizontal scrolling,
   and tab buttons expand to full width.
 
+### Added (migration tooling)
+
+- `close_all.py` — winds down every open ledger trade at current prices
+  (paper-sim fills, reason `manual_close`), preserving history and realized
+  PnL. Run it before switching `BROKER` so simulator-era positions don't
+  hang open under a broker that never opened them:
+  `docker compose run --rm bot python close_all.py --yes`
+
 ### Fixed
 
 - **Ledger concurrency**: the dashboard fires five API requests in parallel
