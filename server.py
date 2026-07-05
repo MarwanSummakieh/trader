@@ -58,6 +58,7 @@ def status():
         prices = get_current_prices([t.ticker for t in open_trades])
         unrealized = _portfolio.unrealized_pnl(prices)
     return {
+        "version": config.VERSION,
         "time": datetime.now(ET).strftime("%H:%M:%S"),
         "timezone": "ET",
         "market_open": _market_open(),

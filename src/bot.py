@@ -236,7 +236,10 @@ class TradingBot:
     # ── Main loop ──────────────────────────────────────────────────────────
 
     def run(self):
-        console.print("[bold green]Day Trading Bot — starting up[/bold green]")
+        console.print(
+            f"[bold green]Day Trading Bot — starting up[/bold green]  "
+            f"[dim]v{config.VERSION}[/dim]"
+        )
         console.print(f"Execution: [bold]{self.broker.name}[/bold]")
         if hasattr(self.broker, "test_connection"):
             ok, msg = self.broker.test_connection()
