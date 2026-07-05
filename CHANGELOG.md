@@ -22,6 +22,17 @@
   (type/exit/%/opened) to fit a 375px screen without horizontal scrolling,
   and tab buttons expand to full width.
 
+### Added (deployment)
+
+- **Version stamp** (`config.VERSION`): printed at bot startup, shown in the
+  dashboard header, and returned by `/api/status` — so "which build is this
+  deployment actually running?" is answerable at a glance. Bump it when
+  cutting a release. Note for Docker deploys: code is baked into the image
+  at build time, so uploading new files does nothing until you rebuild —
+  `docker compose up -d --build`.
+- `.dockerignore` now excludes `.venv/`, `cache/`, SQLite WAL files and
+  local agent config, keeping the build context and image small.
+
 ### Added (migration tooling)
 
 - `close_all.py` — winds down every open ledger trade at current prices
