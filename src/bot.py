@@ -217,6 +217,22 @@ class TradingBot:
 
         self._last_display = self._now()
 
+    def _warn_orphaned_trades(self):
+        """Ledger trades a managing broker has no position for can never be
+        closed by that broker — typically open paper trades carried over from
+        before a switch to BROKER=alpaca. Flag them loudly at startup."""
+        if not self.broker.manages_exits:
+            return
+        for t in self.portfolio.open_trades:
+            if self.broker.has_position(t.ticker) is False:
+                console.print(
+                    f"[bold red]⚠ {t.ticker} is open in the ledger but unknown "
+                    f"to {self.broker.name} — it predates the broker switch and "
+                    f"will never close automatically. Run once with BROKER=paper "
+                    f"to wind it down, or close it manually in the DB.[/bold red]"
+                )
+                logger.warning("Orphaned ledger trade: %s (id=%s)", t.ticker, t.id)
+
     # ── Main loop ──────────────────────────────────────────────────────────
 
     def run(self):
@@ -229,6 +245,7 @@ class TradingBot:
             if not ok:
                 console.print("[bold red]Broker unreachable — exiting.[/bold red]")
                 return
+        self._warn_orphaned_trades()
         if self.etoro:
             ok, msg = self.etoro.test_connection()
             if ok:

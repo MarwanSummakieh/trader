@@ -50,6 +50,7 @@ class Broker(Protocol):
     def close(self, ticker: str, price_hint: float, reason: str) -> Optional[Fill]: ...
     def raise_stop(self, ticker: str, new_stop: float) -> bool: ...
     def detect_exit(self, ticker: str) -> Optional[Fill]: ...
+    def has_position(self, ticker: str) -> Optional[bool]: ...
 
 
 class SimBroker:
@@ -69,6 +70,9 @@ class SimBroker:
 
     def detect_exit(self, ticker):
         return None
+
+    def has_position(self, ticker):
+        return True   # the ledger's book *is* the simulator's book
 
 
 class AlpacaBroker:
@@ -189,6 +193,14 @@ class AlpacaBroker:
         status, _ = self._req("PATCH", f"/v2/orders/{stop_orders[0]['id']}",
                               json={"stop_price": f"{new_stop:.2f}"})
         return status == 200
+
+    def has_position(self, ticker):
+        status, _ = self._req("GET", f"/v2/positions/{ticker}")
+        if status == 200:
+            return True
+        if status == 404:
+            return False
+        return None                # transport/API error — unknown
 
     def detect_exit(self, ticker):
         status, _ = self._req("GET", f"/v2/positions/{ticker}")

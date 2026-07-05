@@ -27,6 +27,12 @@
   flattened; transport errors are never mistaken for "position closed".
 - Bot startup verifies broker connectivity and shows account equity; the
   dashboard header shows the active execution backend.
+- **Existing ledgers carry over unchanged** — no schema changes, so a
+  `ledger.db` from an earlier deployment keeps its capital, stats and open
+  positions. Startup flags any ledger trade a managing broker has no
+  position for (e.g. open paper trades carried into a `BROKER=alpaca`
+  switch), since the broker can never close what it never opened — wind
+  those down with `BROKER=paper` first.
 - Known limits of the Alpaca path (real money, not paper): the US Pattern
   Day Trader rule caps margin accounts under $25k at ~3 day trades per 5
   sessions — this strategy does ~6-7/day, so live trading needs $25k+, a
