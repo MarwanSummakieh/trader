@@ -1,5 +1,46 @@
 # Patch Notes
 
+## 2026-07-05 — Mobile dashboard, tabbed layout, daily P&L metrics
+
+### Added
+
+- **Tabbed dashboard**: Positions, Scans and Orders now live in three tabs
+  with live counts; the active tab persists across page reloads. The orders
+  tab shows exit-reason badges for every close type (Target / Stop / Trail /
+  Margin / EOD / Manual) plus a best/worst/avg summary line.
+- **Daily gain metrics** replace the win-rate / total-trades tiles:
+  - *Today Realized* — closed P&L for the current ET day, with trade count
+    and win rate.
+  - *Today Est.* — realized + unrealized open P&L, with % of day-start
+    capital and the open-position component broken out.
+  - *All-Time P&L* — keeps the removed trade count / win rate in its
+    sub-label, so nothing is lost.
+  - Backing API: `Ledger.get_stats_for_day`, a `today` block in
+    `/api/stats`, and `unrealized_pnl` in `/api/status`.
+- **Phone-friendly layout**: stat grid reflows 6 → 3 → 2 columns, position
+  cards go two-column, the orders table drops secondary columns
+  (type/exit/%/opened) to fit a 375px screen without horizontal scrolling,
+  and tab buttons expand to full width.
+
+### Added (migration tooling)
+
+- `close_all.py` — winds down every open ledger trade at current prices
+  (paper-sim fills, reason `manual_close`), preserving history and realized
+  PnL. Run it before switching `BROKER` so simulator-era positions don't
+  hang open under a broker that never opened them:
+  `docker compose run --rm bot python close_all.py --yes`
+
+### Fixed
+
+- **Ledger concurrency**: the dashboard fires five API requests in parallel
+  and FastAPI serves them from a threadpool, but all endpoints shared one
+  SQLite connection — concurrent access raised
+  `sqlite3.InterfaceError: bad parameter or other API misuse` (surfacing as
+  intermittent 500s / "Server unreachable" flashes, also possible on the old
+  dashboard). All ledger DB access is now serialized behind a lock, with a
+  parallel-hammer regression test.
+- Order timestamps rendered a raw ISO "T" separator (`07-05T13:02`).
+
 ## 2026-07-04 — Alpaca execution, strategy re-validation, test suite
 
 ### Added
@@ -27,6 +68,12 @@
   flattened; transport errors are never mistaken for "position closed".
 - Bot startup verifies broker connectivity and shows account equity; the
   dashboard header shows the active execution backend.
+- **Existing ledgers carry over unchanged** — no schema changes, so a
+  `ledger.db` from an earlier deployment keeps its capital, stats and open
+  positions. Startup flags any ledger trade a managing broker has no
+  position for (e.g. open paper trades carried into a `BROKER=alpaca`
+  switch), since the broker can never close what it never opened — wind
+  those down with `BROKER=paper` first.
 - Known limits of the Alpaca path (real money, not paper): the US Pattern
   Day Trader rule caps margin accounts under $25k at ~3 day trades per 5
   sessions — this strategy does ~6-7/day, so live trading needs $25k+, a

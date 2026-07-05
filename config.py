@@ -4,6 +4,11 @@ from dotenv import load_dotenv
 
 load_dotenv()   # reads .env file (safe no-op if file doesn't exist)
 
+# Deploy stamp — bump when cutting a release (shown at bot startup, in the
+# dashboard header, and in /api/status) so "which code is running?" is
+# always answerable at a glance.
+VERSION = "2026-07-05"
+
 # --- Capital & Risk ---
 # Defaults below are the backtest-validated set (2026-07-02, 59d of 5m bars,
 # train/holdout split): entries = EMA-aligned momentum, daily ADX > 30,

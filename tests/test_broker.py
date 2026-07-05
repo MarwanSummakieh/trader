@@ -37,6 +37,9 @@ class FakeManagedBroker:
     def detect_exit(self, ticker):
         return self.exit_fill
 
+    def has_position(self, ticker):
+        return True
+
 
 def managed_portfolio(ledger):
     broker = FakeManagedBroker()
@@ -202,6 +205,32 @@ def test_alpaca_detect_exit_open_position_and_errors_return_none():
     assert b.detect_exit("AAPL") is None           # still open
     b, _ = stubbed({})                             # transport error (status 0)
     assert b.detect_exit("AAPL") is None           # unknown ≠ exited
+
+
+def test_alpaca_has_position_three_states():
+    b, _ = stubbed({("GET", "/v2/positions/AAPL"): (200, {"qty": "14"})})
+    assert b.has_position("AAPL") is True
+    b, _ = stubbed({("GET", "/v2/positions/AAPL"): (404, None)})
+    assert b.has_position("AAPL") is False
+    b, _ = stubbed({})                             # transport error
+    assert b.has_position("AAPL") is None          # unknown, caller must not act
+
+
+def test_ledger_reuse_across_restart(tmp_path, clean_config):
+    """Reusing an existing ledger.db (e.g. the server's old volume): capital
+    and open positions must carry over into a fresh Portfolio instance."""
+    from src.ledger import Ledger
+
+    db = str(tmp_path / "carried.db")
+    old = Portfolio(Ledger(db), starting_capital=10_000.0)
+    t = old.open_position(make_analysis("WIN"))
+    old.check_exits({"WIN": 115.5})                # +$232.50 realized
+    old.open_position(make_analysis("HELD"))      # left open
+
+    fresh = Portfolio(Ledger(db), starting_capital=10_000.0)
+    assert abs(fresh.capital - (10_000.0 + 15.5 * 15.0)) < 1e-6
+    assert [t.ticker for t in fresh.open_trades] == ["HELD"]
+    assert fresh.open_trades[0].stop_loss == 95.0  # levels survive restart
 
 
 def test_alpaca_close_cancels_legs_then_liquidates():

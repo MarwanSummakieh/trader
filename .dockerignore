@@ -1,8 +1,15 @@
 .env
 ledger.db
+ledger.db-wal
+ledger.db-shm
 bot.log
 __pycache__
 **/__pycache__
 *.pyc
 .git
 data/
+.venv/
+venv/
+cache/
+.claude/
+.pytest_cache/

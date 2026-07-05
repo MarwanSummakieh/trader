@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#08090d" />
   <title>Trader Dashboard</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
@@ -61,9 +62,9 @@
       z-index: 10;
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 14px;
       height: 52px;
-      padding: 0 24px;
+      padding: 0 20px;
       background: rgba(8,9,13,0.85);
       backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border);
@@ -77,14 +78,16 @@
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       letter-spacing: 2px;
+      white-space: nowrap;
     }
 
-    .hdiv { width: 1px; height: 18px; background: var(--border2); }
+    .hdiv { width: 1px; height: 18px; background: var(--border2); flex-shrink: 0; }
 
     #clock {
       font-family: var(--mono);
       font-size: 12px;
       color: var(--muted);
+      white-space: nowrap;
     }
 
     #market-pill {
@@ -97,6 +100,7 @@
       font-weight: 600;
       letter-spacing: 0.5px;
       transition: all .3s;
+      white-space: nowrap;
     }
     #market-pill.open  { background: var(--green2);  color: var(--green);  border: 1px solid rgba(52,211,153,.25); }
     #market-pill.closed{ background: rgba(71,85,105,.15); color: var(--dim); border: 1px solid var(--border2); }
@@ -105,18 +109,17 @@
       width: 7px; height: 7px;
       border-radius: 50%;
       background: currentColor;
+      flex-shrink: 0;
     }
-    #market-pill.open .pulse {
-      animation: pulse 2s infinite;
-    }
+    #market-pill.open .pulse { animation: pulse 2s infinite; }
     @keyframes pulse {
       0%,100% { opacity: 1; }
       50%      { opacity: .3; }
     }
 
-    #scan-info { margin-left: auto; font-size: 11px; color: var(--dim); }
+    #scan-info { margin-left: auto; font-size: 11px; color: var(--dim); white-space: nowrap; }
 
-    /* ── Stats row ───────────────────────────────────── */
+    /* ── Stats grid ──────────────────────────────────── */
     .stats-row {
       display: grid;
       grid-template-columns: repeat(6, 1fr);
@@ -126,6 +129,7 @@
       padding: 14px 20px;
       border-right: 1px solid var(--border);
       transition: background .2s;
+      min-width: 0;
     }
     .metric:last-child { border-right: none; }
     .metric:hover { background: var(--s1); }
@@ -135,6 +139,9 @@
       font-weight: 600;
       line-height: 1.2;
       margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .metric-lbl {
       font-size: 10px;
@@ -142,49 +149,54 @@
       text-transform: uppercase;
       letter-spacing: 1px;
       color: var(--dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
-    /* ── Main grid ───────────────────────────────────── */
-    .grid-main {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      min-height: 420px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .pane {
+    /* ── Tabs ────────────────────────────────────────── */
+    .tabbar {
       display: flex;
-      flex-direction: column;
-      border-right: 1px solid var(--border);
-    }
-    .pane:last-child { border-right: none; }
-
-    .pane-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 20px;
       border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      position: sticky;
+      top: 52px;
+      z-index: 9;
     }
-    .pane-title {
+    .tab {
+      appearance: none;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--dim);
+      font-family: var(--sans);
       font-size: 11px;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 1.5px;
+      padding: 12px 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: color .15s, border-color .15s;
+    }
+    .tab:hover { color: var(--muted); }
+    .tab.active { color: var(--text); border-bottom-color: var(--indigo); }
+    .tab-count {
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 1px 7px;
+      border-radius: 10px;
+      background: var(--s3);
       color: var(--muted);
     }
-    .pane-badge {
-      font-size: 11px;
-      color: var(--dim);
-      font-family: var(--mono);
-    }
+    .tab.active .tab-count { background: var(--indigo2); color: var(--indigo); }
 
-    .pane-body {
-      flex: 1;
-      padding: 16px;
-      overflow-y: auto;
-      max-height: 460px;
-    }
+    .tabpanel { display: none; }
+    .tabpanel.active { display: block; }
+    .panel-body { padding: 16px; max-width: 1100px; }
 
     /* ── Position cards ──────────────────────────────── */
     .pos-card {
@@ -206,6 +218,7 @@
       align-items: center;
       gap: 8px;
       margin-bottom: 12px;
+      flex-wrap: wrap;
     }
     .pos-ticker {
       font-family: var(--mono);
@@ -227,6 +240,7 @@
       font-family: var(--mono);
       font-size: 14px;
       font-weight: 600;
+      white-space: nowrap;
     }
 
     .pos-grid {
@@ -315,7 +329,6 @@
       flex-shrink: 0;
     }
 
-    /* SVG score ring */
     .score-ring { flex-shrink: 0; }
 
     .scan-info { flex: 1; min-width: 0; }
@@ -348,23 +361,12 @@
       text-overflow: ellipsis;
     }
 
-    .scan-score-num {
-      font-family: var(--mono);
-      font-size: 13px;
-      font-weight: 700;
-      width: 28px;
-      text-align: right;
-      flex-shrink: 0;
-    }
-
-    /* ── Trades table ────────────────────────────────── */
-    .trades-wrap { overflow-x: auto; }
-    .section-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 20px;
-      border-bottom: 1px solid var(--border);
+    /* ── Orders table ────────────────────────────────── */
+    .trades-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .orders-summary {
+      padding: 10px 16px 0;
+      font-size: 11px;
+      color: var(--dim);
     }
 
     table { width: 100%; border-collapse: collapse; }
@@ -400,9 +402,10 @@
       border-radius: 4px;
       letter-spacing: .3px;
     }
-    .badge-tp  { background: var(--green2); color: var(--green); }
-    .badge-sl  { background: var(--red2);   color: var(--red); }
-    .badge-eod { background: var(--amber2); color: var(--amber); }
+    .badge-tp  { background: var(--green2);  color: var(--green); }
+    .badge-sl  { background: var(--red2);    color: var(--red); }
+    .badge-eod { background: var(--amber2);  color: var(--amber); }
+    .badge-tr  { background: var(--indigo2); color: var(--indigo); }
 
     /* ── Utilities ───────────────────────────────────── */
     .g { color: var(--green); }
@@ -424,6 +427,35 @@
       font-size: 12px;
     }
     .empty-state svg { opacity: .3; }
+
+    /* ── Responsive ──────────────────────────────────── */
+    @media (max-width: 900px) {
+      .stats-row { grid-template-columns: repeat(3, 1fr); }
+      .metric:nth-child(3) { border-right: none; }
+      .metric:nth-child(-n+3) { border-bottom: 1px solid var(--border); }
+      .metric { padding: 12px 16px; }
+      .metric-val { font-size: 17px; }
+      .metric-lbl { white-space: normal; line-height: 1.4; }
+    }
+
+    @media (max-width: 560px) {
+      header { padding: 0 12px; gap: 10px; }
+      #scan-info { display: none; }
+      .stats-row { grid-template-columns: repeat(2, 1fr); }
+      .metric:nth-child(3) { border-right: 1px solid var(--border); }
+      .metric:nth-child(even) { border-right: none; }
+      .metric:nth-child(-n+4) { border-bottom: 1px solid var(--border); }
+      .metric { padding: 10px 14px; }
+      .metric-val { font-size: 16px; }
+
+      .tab { padding: 12px 12px; font-size: 10px; letter-spacing: 1px; flex: 1; justify-content: center; }
+      .panel-body { padding: 10px; }
+      .pos-grid { grid-template-columns: repeat(2, 1fr); }
+      .pos-card { padding: 12px; }
+
+      thead th, tbody td { padding: 8px 7px; }
+      .hide-sm { display: none; }
+    }
   </style>
 </head>
 <body>
@@ -435,6 +467,7 @@
 
 <header>
   <span class="logo">◈ TRADER</span>
+  <span id="ver" class="d" style="font-size:10px;font-family:var(--mono)"></span>
   <div class="hdiv"></div>
   <span id="clock">--:--:--</span>
   <div class="hdiv"></div>
@@ -452,75 +485,93 @@
   </div>
   <div class="metric">
     <div class="metric-val" id="m-deployed">$—</div>
-    <div class="metric-lbl">Deployed</div>
+    <div class="metric-lbl" id="m-deployed-lbl">Deployed</div>
   </div>
   <div class="metric">
     <div class="metric-val" id="m-positions">—</div>
     <div class="metric-lbl">Positions</div>
   </div>
   <div class="metric">
-    <div class="metric-val" id="m-pnl">$—</div>
-    <div class="metric-lbl">Realized P&L</div>
+    <div class="metric-val" id="m-today">$—</div>
+    <div class="metric-lbl" id="m-today-lbl">Today Realized</div>
   </div>
   <div class="metric">
-    <div class="metric-val" id="m-winrate">—%</div>
-    <div class="metric-lbl">Win Rate</div>
+    <div class="metric-val" id="m-today-est">$—</div>
+    <div class="metric-lbl" id="m-today-est-lbl">Today Est.</div>
   </div>
   <div class="metric">
-    <div class="metric-val d" id="m-trades">—</div>
-    <div class="metric-lbl">Total Trades</div>
+    <div class="metric-val" id="m-total">$—</div>
+    <div class="metric-lbl" id="m-total-lbl">All-Time P&L</div>
   </div>
 </div>
 
-<div class="grid-main">
-  <div class="pane">
-    <div class="pane-head">
-      <span class="pane-title">Open Positions</span>
-      <span class="pane-badge" id="pos-count">0 / —</span>
-    </div>
-    <div class="pane-body" id="pos-body">
-      <div class="empty-state">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-        No open positions
-      </div>
-    </div>
-  </div>
-
-  <div class="pane">
-    <div class="pane-head">
-      <span class="pane-title">Scan Results</span>
-      <span class="pane-badge" id="scan-count">—</span>
-    </div>
-    <div class="pane-body" id="scan-body">
-      <div class="empty-state">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        Waiting for first scan…
-      </div>
-    </div>
-  </div>
+<div class="tabbar">
+  <button class="tab active" data-tab="positions">
+    Positions <span class="tab-count" id="tc-positions">0</span>
+  </button>
+  <button class="tab" data-tab="scans">
+    Scans <span class="tab-count" id="tc-scans">0</span>
+  </button>
+  <button class="tab" data-tab="orders">
+    Orders <span class="tab-count" id="tc-orders">0</span>
+  </button>
 </div>
 
-<div class="trades-wrap">
-  <div class="section-head">
-    <span class="pane-title">Recent Closed Trades</span>
-    <span class="d" id="trades-summary" style="font-size:11px"></span>
+<section class="tabpanel active" id="tab-positions">
+  <div class="panel-body" id="pos-body">
+    <div class="empty-state">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+      No open positions
+    </div>
   </div>
-  <table>
-    <thead>
-      <tr>
-        <th>Ticker</th><th>Type</th><th>Entry</th><th>Exit</th>
-        <th>P&L</th><th>P&L %</th><th>Result</th><th>Opened</th><th>Closed</th>
-      </tr>
-    </thead>
-    <tbody id="trades-body">
-      <tr><td colspan="9"><div class="empty-state">No closed trades yet</div></td></tr>
-    </tbody>
-  </table>
-</div>
+</section>
+
+<section class="tabpanel" id="tab-scans">
+  <div class="panel-body" id="scan-body">
+    <div class="empty-state">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      Waiting for first scan…
+    </div>
+  </div>
+</section>
+
+<section class="tabpanel" id="tab-orders">
+  <div class="orders-summary" id="trades-summary"></div>
+  <div class="trades-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Ticker</th><th class="hide-sm">Type</th><th>Entry</th>
+          <th class="hide-sm">Exit</th>
+          <th>P&L</th><th class="hide-sm">P&L %</th><th>Result</th>
+          <th class="hide-sm">Opened</th><th>Closed</th>
+        </tr>
+      </thead>
+      <tbody id="trades-body">
+        <tr><td colspan="9"><div class="empty-state">No closed trades yet</div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
 
 <script>
 const $ = id => document.getElementById(id);
 const API = '';
+
+// ── Tabs ────────────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    $('tab-' + btn.dataset.tab).classList.add('active');
+    try { localStorage.setItem('trader-tab', btn.dataset.tab); } catch(_) {}
+  });
+});
+try {
+  const saved = localStorage.getItem('trader-tab');
+  if (saved) document.querySelector(`.tab[data-tab="${saved}"]`)?.click();
+} catch(_) {}
 
 // ── Formatting ──────────────────────────────────────────────────────────────
 function usd(n, sign = false) {
@@ -583,23 +634,41 @@ function renderHeader(s) {
 function renderStats(s, st) {
   $('m-capital').textContent  = usd(s.capital);
   $('m-deployed').textContent = usd(s.capital_deployed);
+  $('m-deployed-lbl').textContent = 'Deployed · ' + usd(s.available_capital) + ' free';
   $('m-positions').textContent = s.position_count + ' / ' + s.max_positions;
 
+  const today = st.today || {};
+  const realized = today.total_pnl || 0;
+  const unreal = s.unrealized_pnl || 0;
+  const est = realized + unreal;
+  // Capital at the start of the day ≈ current capital minus today's realized
+  const dayBase = (s.capital || 0) - realized;
+
+  const tEl = $('m-today');
+  tEl.textContent = usd(realized, true);
+  tEl.className = 'metric-val ' + pc(realized);
+  $('m-today-lbl').textContent =
+    'Today Realized · ' + (today.total_trades || 0) + ' trades'
+    + (today.total_trades ? ' · ' + (today.win_rate || 0).toFixed(0) + '% win' : '');
+
+  const eEl = $('m-today-est');
+  eEl.textContent = usd(est, true);
+  eEl.className = 'metric-val ' + pc(est);
+  $('m-today-est-lbl').textContent =
+    'Today Est. · ' + (dayBase > 0 ? pct(est / dayBase * 100, true) : '—')
+    + ' · ' + usd(unreal, true) + ' open';
+
   const pnl = st.total_pnl || 0;
-  const pEl = $('m-pnl');
-  pEl.textContent = usd(pnl, true);
-  pEl.className = 'metric-val ' + pc(pnl);
-
-  const wr = st.win_rate || 0;
-  const wEl = $('m-winrate');
-  wEl.textContent = wr.toFixed(1) + '%';
-  wEl.className = 'metric-val ' + pc(wr - 50);
-
-  $('m-trades').textContent = st.total_trades || '0';
+  const aEl = $('m-total');
+  aEl.textContent = usd(pnl, true);
+  aEl.className = 'metric-val ' + pc(pnl);
+  $('m-total-lbl').textContent =
+    'All-Time P&L · ' + (st.total_trades || 0) + ' trades · '
+    + (st.win_rate || 0).toFixed(0) + '% win';
 }
 
-function renderPositions(positions, maxPos) {
-  $('pos-count').textContent = positions.length + ' / ' + maxPos;
+function renderPositions(positions) {
+  $('tc-positions').textContent = positions.length;
   if (!positions.length) {
     $('pos-body').innerHTML = `<div class="empty-state">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
@@ -641,7 +710,7 @@ function renderPositions(positions, maxPos) {
 }
 
 function renderScans(scans) {
-  $('scan-count').textContent = scans.length ? scans.length + ' symbols' : '—';
+  $('tc-scans').textContent = scans.length;
   if (!scans.length) {
     $('scan-body').innerHTML = `<div class="empty-state">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
@@ -653,7 +722,6 @@ function renderScans(scans) {
     let signals = [];
     try { signals = JSON.parse(s.signals || '[]'); } catch(_) {}
     const detail = [`$${parseFloat(s.price).toFixed(2)}`, `RSI ${parseFloat(s.rsi).toFixed(0)}`, `Vol ${parseFloat(s.volume_ratio).toFixed(1)}x`, ...signals.slice(0,2)].join(' · ');
-    const color = s.score >= 65 ? '#34d399' : s.score >= 45 ? '#fbbf24' : '#f87171';
     return `
     <div class="scan-row">
       <span class="scan-rank">${i+1}</span>
@@ -669,7 +737,17 @@ function renderScans(scans) {
   }).join('');
 }
 
+const REASONS = {
+  take_profit: ['Target', 'badge-tp'],
+  stop_loss:   ['Stop',   'badge-sl'],
+  trail_stop:  ['Trail',  'badge-tr'],
+  margin_call: ['Margin', 'badge-sl'],
+  eod_close:   ['EOD',    'badge-eod'],
+  manual_close:['Manual', 'badge-eod'],
+};
+
 function renderTrades(trades, stats) {
+  $('tc-orders').textContent = trades.length;
   if (stats.total_trades) {
     $('trades-summary').textContent =
       `best ${usd(stats.best_trade,true)} · worst ${usd(stats.worst_trade,true)} · avg ${pct(stats.avg_pnl_pct,true)}`;
@@ -681,17 +759,16 @@ function renderTrades(trades, stats) {
   $('trades-body').innerHTML = trades.map(t => {
     const c = pc(t.pnl || 0);
     const sign = (t.pnl || 0) >= 0 ? '+' : '';
-    const rb = t.exit_reason === 'take_profit' ? 'badge-tp' : t.exit_reason === 'stop_loss' ? 'badge-sl' : 'badge-eod';
-    const label = t.exit_reason === 'take_profit' ? 'Target' : t.exit_reason === 'stop_loss' ? 'Stop' : 'EOD';
+    const [label, rb] = REASONS[t.exit_reason] || [t.exit_reason || '—', 'badge-eod'];
     return `<tr>
       <td class="mono fw6">${t.ticker}</td>
-      <td class="d">${t.asset_type}</td>
+      <td class="d hide-sm">${t.asset_type}</td>
       <td class="mono">$${t.entry_price.toFixed(2)}</td>
-      <td class="mono">${t.exit_price != null ? '$' + t.exit_price.toFixed(2) : '—'}</td>
+      <td class="mono hide-sm">${t.exit_price != null ? '$' + t.exit_price.toFixed(2) : '—'}</td>
       <td class="mono ${c}">${t.pnl != null ? sign + usd(t.pnl) : '—'}</td>
-      <td class="mono ${c}">${t.pnl_pct != null ? sign + t.pnl_pct.toFixed(2) + '%' : '—'}</td>
+      <td class="mono ${c} hide-sm">${t.pnl_pct != null ? sign + t.pnl_pct.toFixed(2) + '%' : '—'}</td>
       <td><span class="badge ${rb}">${label}</span></td>
-      <td class="d">${t.entry_time}</td>
+      <td class="d hide-sm">${t.entry_time}</td>
       <td class="d">${t.exit_time}</td>
     </tr>`;
   }).join('');
@@ -710,7 +787,7 @@ async function refresh() {
     $('err').classList.remove('show');
     renderHeader(status);
     renderStats(status, stats);
-    renderPositions(positions, status.max_positions);
+    renderPositions(positions);
     renderScans(scans);
     renderTrades(trades, stats);
   } catch(e) {

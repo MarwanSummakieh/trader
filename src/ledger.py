@@ -6,6 +6,7 @@ Every buy and sell is recorded; PnL is calculated on close.
 import json
 import logging
 import sqlite3
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Optional
@@ -49,6 +50,11 @@ class Ledger:
         # "database is locked" errors (two processes share this file).
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute("PRAGMA busy_timeout=5000")
+        # One connection shared across threads (FastAPI serves endpoints from
+        # a threadpool): sqlite3 raises InterfaceError on concurrent use of
+        # the same connection, so every DB touch is serialized. Reentrant
+        # because close_trade reads the trade back while holding the lock.
+        self._lock = threading.RLock()
         self._init()
 
     def _init(self):
@@ -101,62 +107,71 @@ class Ledger:
         signals: list[str],
     ) -> Trade:
         now = datetime.now(ET).isoformat()
-        cur = self._conn.execute(
-            """INSERT INTO trades
-               (ticker, asset_type, entry_time, entry_price, quantity,
-                stop_loss, take_profit, signals)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (ticker, asset_type, now, entry_price, quantity,
-             stop_loss, take_profit, json.dumps(signals)),
-        )
-        self._conn.commit()
-        return self.get_trade(cur.lastrowid)  # type: ignore[arg-type]
+        with self._lock:
+            cur = self._conn.execute(
+                """INSERT INTO trades
+                   (ticker, asset_type, entry_time, entry_price, quantity,
+                    stop_loss, take_profit, signals)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (ticker, asset_type, now, entry_price, quantity,
+                 stop_loss, take_profit, json.dumps(signals)),
+            )
+            self._conn.commit()
+            return self.get_trade(cur.lastrowid)  # type: ignore[arg-type]
 
     def update_stop_loss(self, trade_id: int, new_stop: float) -> None:
         """Raise the stop loss on an open trade (profit lock / trailing stop)."""
-        self._conn.execute(
-            "UPDATE trades SET stop_loss=? WHERE id=? AND exit_time IS NULL",
-            (new_stop, trade_id),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "UPDATE trades SET stop_loss=? WHERE id=? AND exit_time IS NULL",
+                (new_stop, trade_id),
+            )
+            self._conn.commit()
 
     def close_trade(self, trade_id: int, exit_price: float, reason: str) -> Trade:
-        trade = self.get_trade(trade_id)
-        if trade is None:
-            raise ValueError(f"Trade {trade_id} not found")
-        pnl = (exit_price - trade.entry_price) * trade.quantity
-        pnl_pct = (exit_price - trade.entry_price) / trade.entry_price * 100
-        now = datetime.now(ET).isoformat()
-        self._conn.execute(
-            "UPDATE trades SET exit_time=?, exit_price=?, pnl=?, pnl_pct=?, exit_reason=? WHERE id=?",
-            (now, exit_price, pnl, pnl_pct, reason, trade_id),
-        )
-        self._conn.commit()
-        return self.get_trade(trade_id)  # type: ignore[return-value]
+        with self._lock:
+            trade = self.get_trade(trade_id)
+            if trade is None:
+                raise ValueError(f"Trade {trade_id} not found")
+            pnl = (exit_price - trade.entry_price) * trade.quantity
+            pnl_pct = (exit_price - trade.entry_price) / trade.entry_price * 100
+            now = datetime.now(ET).isoformat()
+            self._conn.execute(
+                "UPDATE trades SET exit_time=?, exit_price=?, pnl=?, pnl_pct=?, exit_reason=? WHERE id=?",
+                (now, exit_price, pnl, pnl_pct, reason, trade_id),
+            )
+            self._conn.commit()
+            return self.get_trade(trade_id)  # type: ignore[return-value]
 
     # ── Reads ─────────────────────────────────────────────────────────────
 
     def get_trade(self, trade_id: int) -> Optional[Trade]:
-        row = self._conn.execute("SELECT * FROM trades WHERE id=?", (trade_id,)).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM trades WHERE id=?", (trade_id,)
+            ).fetchone()
         return _row(row) if row else None
 
     def get_open_trades(self) -> list[Trade]:
-        rows = self._conn.execute(
-            "SELECT * FROM trades WHERE exit_time IS NULL ORDER BY entry_time"
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM trades WHERE exit_time IS NULL ORDER BY entry_time"
+            ).fetchall()
         return [_row(r) for r in rows]
 
     def get_recent_trades(self, n: int = 20) -> list[Trade]:
-        rows = self._conn.execute(
-            "SELECT * FROM trades WHERE exit_time IS NOT NULL ORDER BY exit_time DESC LIMIT ?",
-            (n,),
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM trades WHERE exit_time IS NOT NULL ORDER BY exit_time DESC LIMIT ?",
+                (n,),
+            ).fetchall()
         return [_row(r) for r in rows]
 
     def get_stats(self) -> dict:
-        rows = self._conn.execute(
-            "SELECT pnl, pnl_pct FROM trades WHERE exit_time IS NOT NULL"
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT pnl, pnl_pct FROM trades WHERE exit_time IS NOT NULL"
+            ).fetchall()
         if not rows:
             return {
                 "total_trades": 0, "win_rate": 0.0,
@@ -176,6 +191,22 @@ class Ledger:
         }
 
 
+    def get_stats_for_day(self, day_iso: str) -> dict:
+        """Realized stats for one ET calendar day ('YYYY-MM-DD'). Exit times
+        are stored as ET ISO strings, so a prefix match selects the day."""
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT pnl FROM trades WHERE exit_time LIKE ? AND pnl IS NOT NULL",
+                (day_iso + "%",),
+            ).fetchall()
+        pnls = [r["pnl"] for r in rows]
+        wins = [p for p in pnls if p > 0]
+        return {
+            "total_pnl": sum(pnls),
+            "total_trades": len(pnls),
+            "win_rate": len(wins) / len(pnls) * 100 if pnls else 0.0,
+        }
+
     # History is retained (not overwritten) so score-vs-outcome analysis is
     # possible later; rows older than the retention window are purged.
     SCAN_RETENTION_DAYS = 30
@@ -185,26 +216,30 @@ class Ledger:
         now_dt = datetime.now(ET)
         now = now_dt.isoformat()
         cutoff = (now_dt - timedelta(days=self.SCAN_RETENTION_DAYS)).isoformat()
-        self._conn.execute("DELETE FROM scan_results WHERE scanned_at < ?", (cutoff,))
-        for a in analyses:
+        with self._lock:
             self._conn.execute(
-                """INSERT INTO scan_results
-                   (ticker, asset_type, score, price, rsi, volume_ratio, trend,
-                    signals, stop_loss, take_profit, scanned_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (a.ticker, a.asset_type, a.score, a.price, a.rsi, a.volume_ratio,
-                 a.trend, json.dumps(a.signals), a.stop_loss, a.take_profit, now),
+                "DELETE FROM scan_results WHERE scanned_at < ?", (cutoff,)
             )
-        self._conn.commit()
+            for a in analyses:
+                self._conn.execute(
+                    """INSERT INTO scan_results
+                       (ticker, asset_type, score, price, rsi, volume_ratio, trend,
+                        signals, stop_loss, take_profit, scanned_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (a.ticker, a.asset_type, a.score, a.price, a.rsi, a.volume_ratio,
+                     a.trend, json.dumps(a.signals), a.stop_loss, a.take_profit, now),
+                )
+            self._conn.commit()
 
     def get_scan_results(self, limit: int = 25) -> list[dict]:
         """Top results from the most recent sweep only."""
-        rows = self._conn.execute(
-            """SELECT * FROM scan_results
-               WHERE scanned_at = (SELECT MAX(scanned_at) FROM scan_results)
-               ORDER BY score DESC LIMIT ?""",
-            (limit,),
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                """SELECT * FROM scan_results
+                   WHERE scanned_at = (SELECT MAX(scanned_at) FROM scan_results)
+                   ORDER BY score DESC LIMIT ?""",
+                (limit,),
+            ).fetchall()
         return [dict(r) for r in rows]
 
 
