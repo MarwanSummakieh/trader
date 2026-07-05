@@ -1,0 +1,220 @@
+"""Broker execution layer: the Portfolio/broker contract (who decides exits,
+who reports fills) and AlpacaBroker's REST behaviour against a stubbed
+transport. No test here touches the network."""
+
+from typing import Optional
+
+import config
+from src.broker import AlpacaBroker, Fill, SimBroker, make_broker
+from src.portfolio import Portfolio
+from tests.test_portfolio import make_analysis
+
+
+# ── Fake managed broker for Portfolio integration ─────────────────────────────
+
+class FakeManagedBroker:
+    manages_exits = True
+    name = "fake"
+
+    def __init__(self):
+        self.exit_fill: Optional[Fill] = None
+        self.raised: list[tuple[str, float]] = []
+        self.raise_ok = True
+        self.open_fill: Optional[Fill] = "default"
+
+    def open(self, ticker, qty, entry_hint, stop, tp):
+        if self.open_fill == "default":
+            return Fill(entry_hint, qty)
+        return self.open_fill
+
+    def close(self, ticker, price_hint, reason):
+        return Fill(price_hint, 0.0, reason)
+
+    def raise_stop(self, ticker, new_stop):
+        self.raised.append((ticker, new_stop))
+        return self.raise_ok
+
+    def detect_exit(self, ticker):
+        return self.exit_fill
+
+
+def managed_portfolio(ledger):
+    broker = FakeManagedBroker()
+    return Portfolio(ledger, broker=broker, starting_capital=10_000.0), broker
+
+
+# ── Portfolio ↔ managed broker contract ───────────────────────────────────────
+
+def test_broker_fill_price_and_qty_recorded(ledger, clean_config):
+    pf, broker = managed_portfolio(ledger)
+    broker.open_fill = Fill(100.25, 14.0)          # broker rounded/slipped
+    trade = pf.open_position(make_analysis())
+    assert trade.entry_price == 100.25
+    assert trade.quantity == 14.0
+
+
+def test_broker_open_refusal_means_no_trade(ledger, clean_config):
+    pf, broker = managed_portfolio(ledger)
+    broker.open_fill = None
+    assert pf.open_position(make_analysis()) is None
+    assert pf.open_trades == []
+    assert pf.can_open()                           # no capital consumed
+
+
+def test_server_side_exit_reconciled(ledger, clean_config):
+    pf, broker = managed_portfolio(ledger)
+    pf.open_position(make_analysis())
+    broker.exit_fill = Fill(115.0, 15.0, "take_profit")
+    closed = pf.check_exits({"TEST": 114.0})       # local price is irrelevant
+    assert len(closed) == 1
+    assert closed[0].exit_reason == "take_profit"
+    assert closed[0].exit_price == 115.0
+
+
+def test_local_price_does_not_close_managed_position(ledger, clean_config):
+    pf, broker = managed_portfolio(ledger)
+    pf.open_position(make_analysis())              # stop 95
+    closed = pf.check_exits({"TEST": 90.0})        # below stop, server silent
+    assert closed == []                            # server is authoritative
+    assert len(pf.open_trades) == 1
+
+
+def test_managed_stop_exit_relabelled_as_trail_after_trailing(ledger, clean_config):
+    pf, broker = managed_portfolio(ledger)
+    pf.open_position(make_analysis())              # R=5, trigger +7.5
+    pf.check_exits({"TEST": 108.0})                # trail → stop 100.5, at broker too
+    assert broker.raised == [("TEST", 100.5)]
+    broker.exit_fill = Fill(100.4, 15.0, "stop_loss")
+    closed = pf.check_exits({"TEST": 100.4})
+    assert closed[0].exit_reason == "trail_stop"   # stop was above entry
+
+
+def test_failed_broker_raise_keeps_ledger_stop(ledger, clean_config):
+    pf, broker = managed_portfolio(ledger)
+    pf.open_position(make_analysis())
+    broker.raise_ok = False
+    pf.check_exits({"TEST": 108.0})
+    # Ledger must never claim a tighter stop than the broker actually holds.
+    assert pf.open_trades[0].stop_loss == 95.0
+
+
+def test_managed_eod_close_without_price(ledger, clean_config):
+    pf, broker = managed_portfolio(ledger)
+    pf.open_position(make_analysis("AAPL"))
+    closed = pf.eod_close_stocks({})               # no local price needed
+    assert len(closed) == 1
+    assert closed[0].exit_reason == "eod_close"
+
+
+# ── make_broker factory ───────────────────────────────────────────────────────
+
+def test_factory_defaults_to_sim(clean_config, monkeypatch):
+    monkeypatch.setattr(config, "BROKER", "paper", raising=False)
+    assert isinstance(make_broker(), SimBroker)
+
+
+def test_factory_refuses_live_endpoint_without_flag(clean_config, monkeypatch):
+    monkeypatch.setattr(config, "BROKER", "alpaca", raising=False)
+    monkeypatch.setattr(config, "ALPACA_API_KEY", "k", raising=False)
+    monkeypatch.setattr(config, "ALPACA_SECRET_KEY", "s", raising=False)
+    monkeypatch.setattr(config, "ALPACA_BASE_URL",
+                        "https://api.alpaca.markets", raising=False)
+    monkeypatch.setattr(config, "ALPACA_ALLOW_LIVE", False, raising=False)
+    import pytest
+    with pytest.raises(SystemExit):
+        make_broker()
+
+
+def test_factory_builds_alpaca_paper(clean_config, monkeypatch):
+    monkeypatch.setattr(config, "BROKER", "alpaca", raising=False)
+    monkeypatch.setattr(config, "ALPACA_API_KEY", "k", raising=False)
+    monkeypatch.setattr(config, "ALPACA_SECRET_KEY", "s", raising=False)
+    monkeypatch.setattr(config, "ALPACA_BASE_URL",
+                        "https://paper-api.alpaca.markets", raising=False)
+    assert isinstance(make_broker(), AlpacaBroker)
+
+
+# ── AlpacaBroker REST behaviour (stubbed transport) ───────────────────────────
+
+def stubbed(responses):
+    """AlpacaBroker whose _req replays canned (status, body) responses keyed
+    by (method, path); records every call. Unknown request → (0, None)."""
+    b = AlpacaBroker("k", "s")
+    calls = []
+
+    def _req(method, path, json=None, params=None):
+        calls.append((method, path, json, params))
+        return responses.get((method, path), (0, None))
+
+    b._req = _req
+    return b, calls
+
+
+def test_alpaca_open_places_bracket_and_returns_fill():
+    b, calls = stubbed({
+        ("POST", "/v2/orders"): (200, {"id": "o1", "status": "accepted"}),
+        ("GET", "/v2/orders/o1"): (200, {"id": "o1", "status": "filled",
+                                         "filled_avg_price": "100.07",
+                                         "filled_qty": "14"}),
+    })
+    fill = b.open("AAPL", 14.9, entry_hint=100.0, stop=95.0, tp=115.0)
+    assert fill.price == 100.07 and fill.qty == 14.0
+    payload = calls[0][2]
+    assert payload["order_class"] == "bracket"
+    assert payload["qty"] == "14"                  # fractional rounded down
+    assert payload["stop_loss"] == {"stop_price": "95.00"}
+    assert payload["take_profit"] == {"limit_price": "115.00"}
+
+
+def test_alpaca_open_refuses_zero_share_and_crypto():
+    b, calls = stubbed({})
+    assert b.open("AAPL", 0.7, 1000.0, 950.0, 1150.0) is None
+    assert b.open("BTC-USD", 5.0, 100.0, 95.0, 115.0) is None
+    assert calls == []                             # never hit the API
+
+
+def test_alpaca_raise_stop_patches_stop_leg():
+    b, calls = stubbed({
+        ("GET", "/v2/orders"): (200, [
+            {"id": "tp1", "side": "sell", "type": "limit"},
+            {"id": "sl1", "side": "sell", "type": "stop"},
+        ]),
+        ("PATCH", "/v2/orders/sl1"): (200, {"id": "sl2"}),
+    })
+    assert b.raise_stop("AAPL", 100.5) is True
+    patch = [c for c in calls if c[0] == "PATCH"][0]
+    assert patch[2] == {"stop_price": "100.50"}
+
+
+def test_alpaca_detect_exit_maps_leg_types():
+    stop_fill = {"side": "sell", "status": "filled", "type": "stop",
+                 "filled_avg_price": "94.90", "filled_qty": "14"}
+    b, _ = stubbed({
+        ("GET", "/v2/positions/AAPL"): (404, None),
+        ("GET", "/v2/orders"): (200, [stop_fill]),
+    })
+    fill = b.detect_exit("AAPL")
+    assert fill.reason == "stop_loss" and fill.price == 94.90
+
+
+def test_alpaca_detect_exit_open_position_and_errors_return_none():
+    b, _ = stubbed({("GET", "/v2/positions/AAPL"): (200, {"qty": "14"})})
+    assert b.detect_exit("AAPL") is None           # still open
+    b, _ = stubbed({})                             # transport error (status 0)
+    assert b.detect_exit("AAPL") is None           # unknown ≠ exited
+
+
+def test_alpaca_close_cancels_legs_then_liquidates():
+    b, calls = stubbed({
+        ("GET", "/v2/orders"): (200, [{"id": "sl1", "side": "sell", "type": "stop"}]),
+        ("DELETE", "/v2/orders/sl1"): (200, {}),
+        ("DELETE", "/v2/positions/AAPL"): (200, {"id": "mkt1"}),
+        ("GET", "/v2/orders/mkt1"): (200, {"status": "filled",
+                                           "filled_avg_price": "101.90",
+                                           "filled_qty": "14"}),
+    })
+    fill = b.close("AAPL", 102.0, "eod_close")
+    assert fill.price == 101.90 and fill.reason == "eod_close"
+    methods = [(c[0], c[1]) for c in calls]
+    assert methods.index(("DELETE", "/v2/orders/sl1")) < \
+        methods.index(("DELETE", "/v2/positions/AAPL"))

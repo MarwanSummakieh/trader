@@ -8,6 +8,20 @@ load_dotenv()   # reads .env file (safe no-op if file doesn't exist)
 # Defaults below are the backtest-validated set (2026-07-02, 59d of 5m bars,
 # train/holdout split): entries = EMA-aligned momentum, daily ADX > 30,
 # RSI 55-70, above daily EMA50, stocks before 12:00 ET only.
+#
+# Re-validated 2026-07-04 (59d window, train/holdout + walk-forward thirds;
+# baseline: 395 trades, +0.14R/trade, 95% CI [+0.03, +0.26], P(edge<=0)=0.8%).
+# Challengers tested and REJECTED — do not re-try without new data:
+#   - volume-ratio entry filter (>=1.0/1.2/1.5): monotonically worse
+#   - session-VWAP filter, MACD>0 filter: no OOS improvement
+#   - skip-first-30-min: strong in-sample, failed holdout (unstable)
+#   - relative-strength vs SPY: tiny OOS gain, -20% trades — not worth it
+#   - SPY daily-uptrend gate: never fired (no bear regime in window) — untested
+#   - time-boxed exits (2h/3h/4h): halve expectancy
+#   - opening-range breakout family: profitable but 3x weaker than baseline
+#   - RSI<35 dip-buy family: negative edge (-0.10R), matches crypto finding
+# Exit grid re-confirmed: tp=3R trig=1.5R dist=1.5R sits on a robust plateau
+# (neighbours within noise; tp 2-6R all positive).
 STARTING_CAPITAL = float(os.getenv("STARTING_CAPITAL", "10000"))
 POSITION_SIZE_PCT = float(os.getenv("POSITION_SIZE_PCT", "0.15"))
 STOP_LOSS_PCT = float(os.getenv("STOP_LOSS_PCT", "0.02"))       # floor for the ATR stop
@@ -71,7 +85,11 @@ EOD_CLOSE_TIME = time(15, 45)
 
 # --- Loop Timing ---
 SCAN_INTERVAL_SECS = 300
-MONITOR_INTERVAL_SECS = 120
+# 60s: the monitor only quotes open positions (<= MAX_POSITIONS tickers,
+# behind data.py's 20s price cache), and the backtest assumes stops are
+# caught within one 5m bar — slower polling than that gives up fills the
+# validated numbers depend on.
+MONITOR_INTERVAL_SECS = 60
 DISPLAY_INTERVAL_SECS = 30
 
 # --- Technical Indicator Periods ---
@@ -91,7 +109,21 @@ VOLUME_LOOKBACK = 20
 # --- Database ---
 DB_PATH = os.getenv("DB_PATH", "ledger.db")
 
-# --- eToro ---
+# --- Broker execution ---
+# "paper"  = internal simulator (default): instant fills + slippage model.
+# "alpaca" = Alpaca bracket orders — entry, stop and take-profit live at the
+#            broker, so exits fire even if this process dies. Paper endpoint
+#            by default; a live endpoint additionally needs ALPACA_ALLOW_LIVE=1.
+# Note: US brokers enforce the Pattern Day Trader rule — real-money margin
+# accounts under $25k get ~3 day trades per 5 sessions, which this strategy
+# (~6-7 round trips/day) cannot operate under. Paper is exempt.
+BROKER = os.getenv("BROKER", "paper").lower()
+ALPACA_API_KEY    = os.getenv("ALPACA_API_KEY", "")
+ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY", "")
+ALPACA_BASE_URL   = os.getenv("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
+ALPACA_ALLOW_LIVE = os.getenv("ALPACA_ALLOW_LIVE", "0").lower() in ("1", "true", "yes")
+
+# --- eToro (read-only: balance display at startup) ---
 # Both keys are generated together in Settings → Trading → API Key Management
 ETORO_PUBLIC_KEY  = os.getenv("ETORO_PUBLIC_KEY", "")   # x-api-key header
 ETORO_PRIVATE_KEY = os.getenv("ETORO_PRIVATE_KEY", "")  # x-user-key header

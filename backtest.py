@@ -163,7 +163,7 @@ def _print_single(params, m, res, buckets):
         f"  Max drawdown  : {m['max_dd_pct']:.1f}%\n"
         f"  Daily return  : mean {m['mean_daily_pct']:+.2f}%   "
         f"best {m['best_day_pct']:+.2f}%   worst {m['worst_day_pct']:+.2f}%\n"
-        f"  Days ≥ +5%    : {m['days_ge_5pct']} of {m['n_days']}"
+        f"  Days >= +5%   : {m['days_ge_5pct']} of {m['n_days']}"
     )
     if m["exit_reasons"]:
         parts = [f"{k} {v}" for k, v in sorted(m["exit_reasons"].items())]
