@@ -624,6 +624,7 @@ function priceTrack(p) {
 
 // ── Renderers ───────────────────────────────────────────────────────────────
 function renderHeader(s) {
+  $('ver').textContent = s.version ? 'v' + s.version : '';
   $('clock').textContent = s.time + ' ' + s.timezone;
   const pill = $('market-pill');
   $('market-txt').textContent = s.market_open ? 'MARKET OPEN' : 'MARKET CLOSED';
