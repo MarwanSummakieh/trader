@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 sys.path.insert(0, os.path.dirname(__file__))
 
 import config
-from src.data import get_current_prices, EToroClient
+from src.data import get_current_prices
 from src.ledger import Ledger
 from src.portfolio import Portfolio
 
@@ -30,10 +30,6 @@ ET = pytz.timezone("America/New_York")
 
 _ledger = Ledger(config.DB_PATH)
 _portfolio = Portfolio(_ledger)
-_etoro = (
-    EToroClient(config.ETORO_PUBLIC_KEY, config.ETORO_PRIVATE_KEY)
-    if config.ETORO_PUBLIC_KEY else None
-)
 
 # Live prices are TTL-cached inside src.data.get_current_prices, so page
 # refreshes don't hammer yfinance.

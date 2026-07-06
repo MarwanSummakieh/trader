@@ -19,7 +19,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from .broker import make_broker
-from .data import get_current_prices, EToroClient
+from .data import get_current_prices
 from .ledger import Ledger, Trade
 from .portfolio import Portfolio
 from .scanner import get_buy_candidates, scan_universe
@@ -36,10 +36,6 @@ class TradingBot:
         self.ledger = Ledger(config.DB_PATH)
         self.broker = make_broker()
         self.portfolio = Portfolio(self.ledger, broker=self.broker)
-        self.etoro: Optional[EToroClient] = (
-            EToroClient(config.ETORO_PUBLIC_KEY, config.ETORO_PRIVATE_KEY)
-            if config.ETORO_PUBLIC_KEY else None
-        )
         self._last_scan: Optional[datetime] = None
         self._last_monitor: Optional[datetime] = None
         self._last_display: Optional[datetime] = None
@@ -249,14 +245,6 @@ class TradingBot:
                 console.print("[bold red]Broker unreachable — exiting.[/bold red]")
                 return
         self._warn_orphaned_trades()
-        if self.etoro:
-            ok, msg = self.etoro.test_connection()
-            if ok:
-                bal = self.etoro.get_account_balance()
-                bal_str = f" — real balance: ${bal:,.2f}" if bal else ""
-                console.print(f"[green]✓ {msg}{bal_str}[/green]")
-            else:
-                console.print(f"[yellow]⚠ {msg}[/yellow]")
 
         while True:
             try:

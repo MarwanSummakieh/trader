@@ -1,5 +1,40 @@
 # Patch Notes
 
+## 2026-07-06 — Alpaca-only, with modeled trading costs
+
+### Added
+
+- **README.md** — public-facing setup guide: local install, `.env` creation
+  with Alpaca paper keys, Docker usage, backtesting and test commands, and a
+  link to the live instance at trader.marwansummakieh.me.
+
+### Removed
+
+- **eToro integration** deleted entirely — `EToroClient`, its config keys
+  (`ETORO_PUBLIC_KEY` / `ETORO_PRIVATE_KEY`), the startup balance display,
+  the unused `_etoro` handle in the server, and the now-dead `requests` /
+  `uuid` imports in `src/data.py`. eToro was only ever a read-only balance
+  readout and was never in the execution path, so nothing about trading
+  changes. Alpaca is now the sole broker; the internal paper simulator
+  (`SimBroker`, `BROKER=paper`) remains as the default test/paper backend.
+
+### Added
+
+- **Alpaca cost model** (`src/fees.py`): Alpaca US equities are
+  commission-free, so the real costs are the bid/ask spread (already modeled
+  per side by `FEE_SLIPPAGE_PCT`) plus small regulatory pass-through fees on
+  **sells only** — SEC fee (fraction of proceeds) + FINRA TAF (per share,
+  capped). Config: `ALPACA_SEC_FEE_RATE`, `ALPACA_FINRA_TAF_PER_SHARE`,
+  `ALPACA_FINRA_TAF_CAP` (all `.env`-overridable when rates change).
+  - Applied on every close in both the live/paper path (`Portfolio` routes
+    all closes through `_record_close`, netting the fee into the exit price)
+    and the backtest simulator (`SimParams` fee fields; `BTTrade.pnl` nets a
+    per-trade fee), so realized PnL is honest net of every real cost.
+  - Re-validated: the strategy edge is unchanged — 395 trades, +$1,822 net
+    of fees (was +$1,841 gross), still +0.14R/trade. Fees cost ~$0.05/trade.
+    The 0.1%/side spread assumption is conservative for this liquid universe
+    now that no commission is bundled into it.
+
 ## 2026-07-05 — Mobile dashboard, tabbed layout, daily P&L metrics
 
 ### Added

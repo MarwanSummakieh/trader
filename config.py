@@ -34,9 +34,21 @@ TAKE_PROFIT_R_MULT = float(os.getenv("TAKE_PROFIT_R_MULT", "3.0"))  # target = e
 # Validation showed 5 concurrent slots underperforms; >=7 is capital-limited anyway.
 MAX_POSITIONS = int(os.getenv("MAX_POSITIONS", "8"))
 
-# Paper-fill realism: applied per side (entry fills higher, exit fills lower)
-# to approximate spread + slippage + fees. 0.001 = 0.1% per side.
+# Bid/ask spread + slippage on market fills, applied per side (entry fills
+# higher, exit fills lower). 0.001 = 0.1% per side. Alpaca US equities are
+# COMMISSION-FREE, so this now models spread/slippage only — and 0.1% is
+# conservative for the liquid large-caps in this universe (real spreads are
+# usually tighter), so the backtested edge is if anything understated.
 FEE_SLIPPAGE_PCT = float(os.getenv("FEE_SLIPPAGE_PCT", "0.001"))
+
+# Alpaca regulatory pass-through fees — charged on SELLS only, buys are free.
+# Tiny (cents per trade) but modeled so backtest/paper PnL is honest net of
+# every real cost. Rates change periodically; override via .env when they do.
+#   SEC fee:   a % of sell proceeds (2025 rate ≈ $27.80 per $1M = 0.0000278)
+#   FINRA TAF: per share sold, capped per trade
+ALPACA_SEC_FEE_RATE        = float(os.getenv("ALPACA_SEC_FEE_RATE", "0.0000278"))
+ALPACA_FINRA_TAF_PER_SHARE = float(os.getenv("ALPACA_FINRA_TAF_PER_SHARE", "0.000166"))
+ALPACA_FINRA_TAF_CAP       = float(os.getenv("ALPACA_FINRA_TAF_CAP", "8.30"))
 
 # CFD-style leverage: exposure = committed margin * LEVERAGE. A position is
 # force-closed ("margin_call") when its loss reaches MARGIN_CALL_LOSS of the
@@ -127,8 +139,3 @@ ALPACA_API_KEY    = os.getenv("ALPACA_API_KEY", "")
 ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY", "")
 ALPACA_BASE_URL   = os.getenv("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
 ALPACA_ALLOW_LIVE = os.getenv("ALPACA_ALLOW_LIVE", "0").lower() in ("1", "true", "yes")
-
-# --- eToro (read-only: balance display at startup) ---
-# Both keys are generated together in Settings → Trading → API Key Management
-ETORO_PUBLIC_KEY  = os.getenv("ETORO_PUBLIC_KEY", "")   # x-api-key header
-ETORO_PRIVATE_KEY = os.getenv("ETORO_PRIVATE_KEY", "")  # x-user-key header

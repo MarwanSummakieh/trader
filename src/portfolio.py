@@ -8,6 +8,7 @@ from typing import Optional
 
 from .analyzer import Analysis
 from .broker import Broker, SimBroker
+from .fees import sell_regulatory_fee
 from .ledger import Ledger, Trade
 import config
 
@@ -105,6 +106,16 @@ class Portfolio:
         the target never does — so R is recovered from the target distance."""
         return (trade.take_profit - trade.entry_price) / config.TAKE_PROFIT_R_MULT
 
+    def _record_close(self, trade: Trade, gross_price: float, reason: str) -> Trade:
+        """Record a close net of Alpaca sell-side regulatory fees (SEC +
+        FINRA TAF). `gross_price` is the executed fill; the fee is folded
+        into the effective exit price so realized PnL / pnl_pct reflect every
+        real cost (buys are fee-free; spread/slippage is already in the fill).
+        """
+        reg_fee = sell_regulatory_fee(gross_price, trade.quantity)
+        net_price = gross_price - (reg_fee / trade.quantity if trade.quantity else 0.0)
+        return self.ledger.close_trade(trade.id, net_price, reason)
+
     def check_exits(self, current_prices: dict[str, float]) -> list[Trade]:
         """
         Close positions that hit stop-loss or take-profit.
@@ -128,9 +139,7 @@ class Portfolio:
                     # (initial stops are strictly below entry).
                     if reason == "stop_loss" and trade.stop_loss >= trade.entry_price:
                         reason = "trail_stop"
-                    closed_trade = self.ledger.close_trade(
-                        trade.id, fill.price, reason  # type: ignore[arg-type]
-                    )
+                    closed_trade = self._record_close(trade, fill.price, reason)
                     logger.info(
                         "CLOSE %-8s @ $%8.2f  PnL $%+.2f (%+.1f%%)  [%s @ %s]",
                         trade.ticker, fill.price, closed_trade.pnl or 0,
@@ -190,9 +199,7 @@ class Portfolio:
             fill = self.broker.close(trade.ticker, price, reason)
             if fill is None:
                 continue
-            closed_trade = self.ledger.close_trade(
-                trade.id, fill.price, reason  # type: ignore[arg-type]
-            )
+            closed_trade = self._record_close(trade, fill.price, reason)
             logger.info(
                 "CLOSE %-8s @ $%8.2f  PnL $%+.2f (%+.1f%%)  [%s]",
                 trade.ticker, price,
@@ -224,8 +231,8 @@ class Portfolio:
                     trade.ticker,
                 )
                 continue
-            closed_trade = self.ledger.close_trade(
-                trade.id, fill.price, fill.reason or "eod_close"  # type: ignore[arg-type]
+            closed_trade = self._record_close(
+                trade, fill.price, fill.reason or "eod_close"
             )
             logger.info(
                 "EOD   %-8s @ $%8.2f  PnL $%+.2f (%+.1f%%)",

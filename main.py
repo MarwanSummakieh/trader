@@ -9,8 +9,8 @@ Usage:
     python main.py --trades      # print last 20 closed trades
     python main.py --capital 50000  # override starting capital
 
-Set your eToro API keys (optional, for portfolio context) in .env:
-    ETORO_PUBLIC_KEY / ETORO_PRIVATE_KEY
+Broker + keys are set in .env (BROKER=alpaca, ALPACA_API_KEY,
+ALPACA_SECRET_KEY). With BROKER unset it runs the internal paper simulator.
 """
 
 import argparse

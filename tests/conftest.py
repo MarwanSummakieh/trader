@@ -18,6 +18,11 @@ def clean_config(monkeypatch):
     monkeypatch.setattr(config, "POSITION_SIZE_PCT", 0.15)
     monkeypatch.setattr(config, "MAX_POSITIONS", 8)
     monkeypatch.setattr(config, "FEE_SLIPPAGE_PCT", 0.0)
+    # Regulatory fees off by default so exact-PnL assertions stay clean;
+    # the fee-specific tests re-enable them explicitly.
+    monkeypatch.setattr(config, "ALPACA_SEC_FEE_RATE", 0.0)
+    monkeypatch.setattr(config, "ALPACA_FINRA_TAF_PER_SHARE", 0.0)
+    monkeypatch.setattr(config, "ALPACA_FINRA_TAF_CAP", 0.0)
     monkeypatch.setattr(config, "LEVERAGE", 1.0)
     monkeypatch.setattr(config, "MARGIN_CALL_LOSS", 0.9)
     monkeypatch.setattr(config, "TAKE_PROFIT_R_MULT", 3.0)
