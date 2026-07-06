@@ -1,0 +1,54 @@
+# NAS deployment: pull the prebuilt image from GitHub, no building required.
+#
+# On the NAS, put THIS file (renamed to docker-compose.yml) plus your own
+# .env in a folder, then in the UGOS Docker UI create a project from it.
+# To update later: pull the image and recreate the containers in the UI —
+# there is never any build step on the NAS.
+#
+# The .env file lives next to this file, is read at container start, and is
+# never part of the image. Minimum contents:
+#   CF_TUNNEL_TOKEN=...          # for the cloudflare tunnel
+#   BROKER=alpaca
+#   ALPACA_API_KEY=...
+#   ALPACA_SECRET_KEY=...
+# (everything else has defaults in config.py)
+
+services:
+  bot:
+    image: ghcr.io/marwansummakieh/trader:latest
+    command: python main.py
+    env_file: .env
+    environment:
+      - DB_PATH=/app/data/ledger.db
+    volumes:
+      - trader_data:/app/data
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  server:
+    image: ghcr.io/marwansummakieh/trader:latest
+    command: python server.py
+    env_file: .env
+    environment:
+      - DB_PATH=/app/data/ledger.db
+    volumes:
+      - trader_data:/app/data
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+    depends_on:
+      - bot
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+    restart: unless-stopped
+    depends_on:
+      - server
+
+volumes:
+  trader_data:
