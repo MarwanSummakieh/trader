@@ -2,6 +2,12 @@
 
 ## 2026-07-06 — Alpaca-only, with modeled trading costs
 
+### Added
+
+- **README.md** — public-facing setup guide: local install, `.env` creation
+  with Alpaca paper keys, Docker usage, backtesting and test commands, and a
+  link to the live instance at trader.marwansummakieh.me.
+
 ### Removed
 
 - **eToro integration** deleted entirely — `EToroClient`, its config keys
