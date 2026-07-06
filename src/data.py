@@ -1,12 +1,10 @@
 import logging
 import threading
 import time
-import uuid
 from datetime import date, timedelta
 from typing import Optional
 
 import pandas as pd
-import requests
 import yfinance as yf
 
 import config
@@ -170,99 +168,3 @@ def get_earnings_window_days(ticker: str) -> set:
 
 def in_earnings_window(ticker: str, day: date) -> bool:
     return day in get_earnings_window_days(ticker)
-
-
-class EToroClient:
-    """
-    eToro public API client (read-only portfolio/balance context).
-
-    Requires two keys from eToro Settings → Trading → API Key Management:
-      ETORO_API_KEY  = the "API Key"  (x-api-key header)
-      ETORO_USER_KEY = the "User Key" (x-user-key header)
-
-    All market data for analysis still comes from yfinance.
-    eToro's trading/execution endpoints require partner-level access and are
-    not used here — this is a paper-trading bot.
-    """
-    BASE = "https://public-api.etoro.com/api/v1"
-
-    def __init__(self, public_key: str, private_key: str):
-        self.public_key = public_key
-        self.private_key = private_key
-
-    def _headers(self) -> dict:
-        return {
-            "x-api-key": self.public_key,
-            "x-user-key": self.private_key,
-            "x-request-id": str(uuid.uuid4()),
-            "Accept": "application/json",
-        }
-
-    def _get(self, path: str) -> Optional[dict]:
-        try:
-            r = requests.get(
-                f"{self.BASE}{path}",
-                headers=self._headers(),
-                timeout=5,
-            )
-            if r.ok:
-                return r.json()
-            logger.debug("eToro API %s → %d %s", path, r.status_code, r.text[:120])
-            return None
-        except Exception as e:
-            logger.debug("eToro API request failed: %s", e)
-            return None
-
-    def test_connection(self) -> tuple[bool, str]:
-        """Returns (success, message). Call this at startup."""
-        if not self.public_key or not self.private_key:
-            return False, "Missing ETORO_PUBLIC_KEY or ETORO_PRIVATE_KEY in .env"
-        data = self._get("/trading/info/portfolio")
-        if data is not None:
-            return True, "eToro API connected"
-        # Try the authenticated user profile endpoint as fallback
-        data = self._get("/user/profile")
-        if data is not None:
-            return True, "eToro API connected (profile endpoint)"
-        return False, "eToro API auth failed — check both keys in .env"
-
-    def get_portfolio(self) -> Optional[dict]:
-        return self._get("/trading/info/portfolio")
-
-    def get_demo_portfolio(self) -> Optional[dict]:
-        return self._get("/trading/info/demo/portfolio")
-
-    def get_balance(self) -> Optional[dict]:
-        return self._get("/account/balance")
-
-    def get_account_balance(self) -> Optional[float]:
-        """Returns total real account balance in USD, or None on failure."""
-        data = self.get_balance()
-        if not data:
-            return None
-        # eToro balance response shape varies — try common field names
-        for field in ("totalBalance", "balance", "amount", "totalEquity", "equity"):
-            if field in data and data[field] is not None:
-                return float(data[field])
-        # Sometimes nested under a key
-        if isinstance(data, list) and data:
-            entry = data[0]
-            for field in ("totalBalance", "balance", "amount"):
-                if field in entry:
-                    return float(entry[field])
-        return None
-
-    def get_open_positions(self) -> list[dict]:
-        """Returns list of open positions from the real portfolio."""
-        portfolio = self.get_portfolio()
-        if not portfolio:
-            return []
-        # Common shapes: {"positions": [...]} or {"openTrades": [...]} or list directly
-        if isinstance(portfolio, list):
-            return portfolio
-        return (
-            portfolio.get("positions")
-            or portfolio.get("openTrades")
-            or portfolio.get("trades")
-            or []
-        )

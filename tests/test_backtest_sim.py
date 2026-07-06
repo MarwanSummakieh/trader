@@ -45,7 +45,8 @@ def make_frame(bars, day=1, signal_at=(0,), stop_dist=5.0, ticker="TEST"):
 
 
 PARAMS = SimParams(fee_slippage_pct=0.0, starting_capital=10_000.0,
-                   position_size_pct=0.15)
+                   position_size_pct=0.15,
+                   sec_fee_rate=0.0, finra_taf_per_share=0.0, finra_taf_cap=0.0)
 
 
 def run(frame):

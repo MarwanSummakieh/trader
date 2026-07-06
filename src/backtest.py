@@ -33,6 +33,7 @@ import yfinance as yf
 
 from . import indicators as ind
 from .analyzer import _score
+from .fees import sell_regulatory_fee
 import config
 
 logger = logging.getLogger(__name__)
@@ -240,6 +241,10 @@ class SimParams:
     position_size_pct: float = config.POSITION_SIZE_PCT
     max_positions: int = config.MAX_POSITIONS
     fee_slippage_pct: float = config.FEE_SLIPPAGE_PCT
+    # Alpaca sell-side regulatory fees (commission is $0); see src/fees.py.
+    sec_fee_rate: float = config.ALPACA_SEC_FEE_RATE
+    finra_taf_per_share: float = config.ALPACA_FINRA_TAF_PER_SHARE
+    finra_taf_cap: float = config.ALPACA_FINRA_TAF_CAP
     starting_capital: float = config.STARTING_CAPITAL
     max_hold_bars: Optional[int] = None         # time-box: exit at close after N bars
     # CFD-style leverage: exposure = committed margin * leverage. The broker
@@ -275,10 +280,11 @@ class BTTrade:
     exit_ts: object = None
     exit_px: float = 0.0
     reason: str = ""
+    fees: float = 0.0             # sell-side regulatory fees (SEC + FINRA TAF)
 
     @property
     def pnl(self) -> float:
-        return (self.exit_px - self.entry_px) * self.qty
+        return (self.exit_px - self.entry_px) * self.qty - self.fees
 
     @property
     def r_multiple(self) -> float:
@@ -314,6 +320,10 @@ def simulate(frames: dict[str, SignalData], params: SimParams) -> SimResult:
         nonlocal capital
         pos.exit_ts = ts
         pos.exit_px = raw_px * (1 - fee)
+        pos.fees = sell_regulatory_fee(
+            pos.exit_px, pos.qty,
+            params.sec_fee_rate, params.finra_taf_per_share, params.finra_taf_cap,
+        )
         pos.reason = reason
         capital += pos.pnl
         closed.append(pos)
