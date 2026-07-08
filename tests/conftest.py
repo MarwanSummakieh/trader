@@ -17,6 +17,7 @@ def clean_config(monkeypatch):
     monkeypatch.setattr(config, "STARTING_CAPITAL", 10_000.0)
     monkeypatch.setattr(config, "POSITION_SIZE_PCT", 0.15)
     monkeypatch.setattr(config, "MAX_POSITIONS", 8)
+    monkeypatch.setattr(config, "CRYPTO_MAX_CAPITAL_PCT", 0.30)
     monkeypatch.setattr(config, "FEE_SLIPPAGE_PCT", 0.0)
     # Regulatory fees off by default so exact-PnL assertions stay clean;
     # the fee-specific tests re-enable them explicitly.

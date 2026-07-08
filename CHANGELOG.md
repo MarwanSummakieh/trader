@@ -1,5 +1,18 @@
 # Patch Notes
 
+## 2026-07-08 — Crypto capital cap
+
+### Fixed
+
+- **Crypto could starve the stock session of capital.** Crypto scans run
+  24/7 while stocks only trade 9:30–16:00 ET, so with `ENABLE_CRYPTO=1` the
+  bot would fill position after position overnight and open the stock
+  session with no buying power left. Crypto's total committed margin is now
+  capped at `CRYPTO_MAX_CAPITAL_PCT` of capital (default 0.30 → two
+  concurrent crypto positions at 15% sizing); the rest stays reserved for
+  stocks. Reminder: crypto remains **off by default** — its entry rules
+  tested negative-edge in validation.
+
 ## 2026-07-06 — Alpaca-only, with modeled trading costs
 
 ### Added
