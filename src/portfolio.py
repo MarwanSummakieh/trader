@@ -54,6 +54,14 @@ class Portfolio:
     def available_capital(self) -> float:
         return self.capital - self.capital_deployed
 
+    @property
+    def crypto_capital_deployed(self) -> float:
+        """Margin committed to crypto positions (see capital_deployed)."""
+        return sum(
+            t.entry_price * t.quantity
+            for t in self.open_trades if t.asset_type == "crypto"
+        ) / config.LEVERAGE
+
     def can_open(self) -> bool:
         slot_ok = self.position_count < config.MAX_POSITIONS
         size = self.capital * config.POSITION_SIZE_PCT
@@ -75,6 +83,19 @@ class Portfolio:
             self.capital * config.POSITION_SIZE_PCT,
             self.available_capital * 0.95,
         )
+
+        # Crypto trades 24/7; without a budget it would consume all buying
+        # power overnight and leave nothing for the stock session open.
+        if analysis.asset_type == "crypto":
+            crypto_budget = self.capital * config.CRYPTO_MAX_CAPITAL_PCT
+            if self.crypto_capital_deployed + margin > crypto_budget:
+                logger.info(
+                    "SKIP  %-8s — crypto budget reached "
+                    "($%.0f of $%.0f committed)",
+                    analysis.ticker, self.crypto_capital_deployed, crypto_budget,
+                )
+                return None
+
         quantity = margin * config.LEVERAGE / expected_fill
 
         fill = self.broker.open(

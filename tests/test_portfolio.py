@@ -55,6 +55,26 @@ def test_max_positions_enforced(portfolio, monkeypatch):
     assert portfolio.open_position(make_analysis("C")) is None
 
 
+def test_crypto_capital_capped_stocks_unaffected(portfolio):
+    # 30% cap at 15%/position → exactly two crypto slots
+    assert portfolio.open_position(
+        make_analysis("BTC-USD", asset_type="crypto")) is not None
+    assert portfolio.open_position(
+        make_analysis("ETH-USD", asset_type="crypto")) is not None
+    assert portfolio.open_position(
+        make_analysis("SOL-USD", asset_type="crypto")) is None   # budget full
+    assert abs(portfolio.crypto_capital_deployed - 3_000.0) < 1e-6
+    # the stock session still has its capital
+    assert portfolio.open_position(make_analysis("AAPL")) is not None
+
+
+def test_crypto_cap_zero_blocks_all_crypto(portfolio, monkeypatch):
+    monkeypatch.setattr(config, "CRYPTO_MAX_CAPITAL_PCT", 0.0)
+    assert portfolio.open_position(
+        make_analysis("BTC-USD", asset_type="crypto")) is None
+    assert portfolio.open_position(make_analysis("AAPL")) is not None
+
+
 # ── Exits ─────────────────────────────────────────────────────────────────────
 
 def test_stop_loss_exit(portfolio):

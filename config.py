@@ -71,6 +71,13 @@ STOCK_ENTRY_CUTOFF = time(int(_cutoff[0]), int(_cutoff[1]))
 # oversold-bounce edge did not survive execution testing) — off by default.
 ENABLE_CRYPTO = os.getenv("ENABLE_CRYPTO", "0").lower() in ("1", "true", "yes")
 
+# When crypto IS enabled it scans 24/7 while stocks only trade 9:30–16:00 ET,
+# so overnight crypto entries would otherwise consume all buying power before
+# the stock session opens. Crypto's total committed margin is therefore capped
+# at this fraction of capital; the rest stays reserved for stocks.
+# At 15%/position this allows 2 concurrent crypto positions.
+CRYPTO_MAX_CAPITAL_PCT = float(os.getenv("CRYPTO_MAX_CAPITAL_PCT", "0.30"))
+
 # Skip stock entries on earnings reaction days (announcement day + next
 # session). Tested 2026-07: such entries won 18% at -0.41R average.
 EARNINGS_FILTER = os.getenv("EARNINGS_FILTER", "1").lower() in ("1", "true", "yes")
