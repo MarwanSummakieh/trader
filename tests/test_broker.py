@@ -21,6 +21,8 @@ class FakeManagedBroker:
         self.raised: list[tuple[str, float]] = []
         self.raise_ok = True
         self.open_fill: Optional[Fill] = "default"
+        # True/False/None, or a list of them consumed one per call
+        self.position_exists = True
 
     def open(self, ticker, qty, entry_hint, stop, tp):
         if self.open_fill == "default":
@@ -38,7 +40,9 @@ class FakeManagedBroker:
         return self.exit_fill
 
     def has_position(self, ticker):
-        return True
+        if isinstance(self.position_exists, list):
+            return self.position_exists.pop(0) if self.position_exists else False
+        return self.position_exists
 
 
 def managed_portfolio(ledger):
@@ -107,6 +111,76 @@ def test_managed_eod_close_without_price(ledger, clean_config):
     closed = pf.eod_close_stocks({})               # no local price needed
     assert len(closed) == 1
     assert closed[0].exit_reason == "eod_close"
+
+
+# ── Orphaned trades (broker never opened them) ────────────────────────────────
+
+def test_orphan_takes_three_strikes_then_closes_locally(ledger, clean_config):
+    pf, broker = managed_portfolio(ledger)
+    pf.open_position(make_analysis())              # entry 100, tp 115
+    broker.position_exists = False                 # broker: "no such position"
+
+    assert pf.check_exits({"TEST": 116.0}) == []   # strike 1 — frozen
+    assert pf.check_exits({"TEST": 116.0}) == []   # strike 2 — frozen
+    closed = pf.check_exits({"TEST": 116.0})       # strike 3 — local management
+    assert len(closed) == 1
+    assert closed[0].exit_reason == "take_profit"
+    assert closed[0].exit_price == 116.0           # sim fill (fees zeroed)
+
+
+def test_orphan_stop_loss_fires_locally(ledger, clean_config):
+    pf, broker = managed_portfolio(ledger)
+    pf.open_position(make_analysis())              # stop 95
+    broker.position_exists = False
+    for _ in range(2):
+        pf.check_exits({"TEST": 94.0})
+    closed = pf.check_exits({"TEST": 94.0})
+    assert closed[0].exit_reason == "stop_loss"
+
+
+def test_real_position_is_never_orphan_closed(ledger, clean_config):
+    pf, broker = managed_portfolio(ledger)
+    pf.open_position(make_analysis())
+    broker.position_exists = True                  # broker really holds it
+    for _ in range(10):
+        assert pf.check_exits({"TEST": 116.0}) == []
+    assert len(pf.open_trades) == 1                # server stays authoritative
+
+
+def test_transport_errors_do_not_advance_or_reset_strikes(ledger, clean_config):
+    pf, broker = managed_portfolio(ledger)
+    pf.open_position(make_analysis())
+    # False, False, None (unknown), False → 3rd real confirmation on call 4
+    broker.position_exists = [False, False, None, False]
+    for _ in range(3):
+        assert pf.check_exits({"TEST": 116.0}) == []
+    closed = pf.check_exits({"TEST": 116.0})
+    assert len(closed) == 1
+
+
+def test_orphan_trailing_updates_ledger_despite_broker(ledger, clean_config):
+    pf, broker = managed_portfolio(ledger)
+    pf.open_position(make_analysis())              # R=5, trigger +7.5
+    broker.position_exists = False
+    broker.raise_ok = False                        # broker refuses raises
+    pf.check_exits({"TEST": 108.0})                # strikes 1-2: broker path,
+    pf.check_exits({"TEST": 108.0})                # refused → stop stays put
+    assert pf.open_trades[0].stop_loss == 95.0
+    pf.check_exits({"TEST": 108.0})                # strike 3: sim-managed
+    assert abs(pf.open_trades[0].stop_loss - 100.5) < 1e-9
+
+
+def test_orphaned_stock_eod_closes_locally(ledger, clean_config):
+    pf, broker = managed_portfolio(ledger)
+    pf.open_position(make_analysis("AAPL"))
+    broker.position_exists = False
+    broker.exit_fill = None
+    for _ in range(3):
+        pf.check_exits({"AAPL": 101.0})            # accumulate strikes
+    closed = pf.eod_close_stocks({"AAPL": 101.0})
+    assert len(closed) == 1
+    assert closed[0].exit_reason == "eod_close"
+    assert closed[0].exit_price == 101.0           # sim fill, not broker
 
 
 # ── make_broker factory ───────────────────────────────────────────────────────

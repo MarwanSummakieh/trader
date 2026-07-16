@@ -16,10 +16,17 @@ logger = logging.getLogger(__name__)
 
 
 class Portfolio:
+    # Consecutive "broker has no such position" confirmations before an open
+    # ledger trade is declared orphaned and managed locally (3 × the monitor
+    # interval — enough to rule out API races around a bracket-leg fill).
+    ORPHAN_STRIKES = 3
+
     def __init__(self, ledger: Ledger, broker: Optional[Broker] = None,
                  starting_capital: float = None):
         self.ledger = ledger
         self.broker = broker or SimBroker()
+        self._sim = SimBroker()          # executes fills for orphaned trades
+        self._orphan_strikes: dict[str, int] = {}
         self._starting_capital = starting_capital or config.STARTING_CAPITAL
 
     # ── Derived state ──────────────────────────────────────────────────────
@@ -148,9 +155,18 @@ class Portfolio:
         broker already executed are reconciled into the ledger and trailing
         raises the broker's stop order; the local stop/target/margin-call
         checks run only for the simulated broker.
+
+        Orphan fallback: a ledger trade the managing broker never opened
+        (e.g. filled by the simulator before a broker switch) can never be
+        exited broker-side — without a fallback it stays frozen forever
+        while holding capital. Once the broker denies holding the position
+        ORPHAN_STRIKES cycles in a row, the trade is managed locally with
+        simulated fills until it closes.
         """
         closed: list[Trade] = []
         for trade in self.open_trades:
+            exec_broker: Broker = self.broker
+
             # ── Broker-side exits (authoritative when managed) ─────────────
             if self.broker.manages_exits:
                 fill = self.broker.detect_exit(trade.ticker)
@@ -167,7 +183,26 @@ class Portfolio:
                         closed_trade.pnl_pct or 0, reason, self.broker.name,
                     )
                     closed.append(closed_trade)
+                    self._orphan_strikes.pop(trade.ticker, None)
                     continue
+
+                # ── Orphan tracking ────────────────────────────────────────
+                has = self.broker.has_position(trade.ticker)
+                if has is False:
+                    n = self._orphan_strikes.get(trade.ticker, 0) + 1
+                    self._orphan_strikes[trade.ticker] = n
+                    if n == self.ORPHAN_STRIKES:
+                        logger.warning(
+                            "%s: open in ledger but %s holds no such position "
+                            "(%d checks) — managing it locally from here on",
+                            trade.ticker, self.broker.name, n,
+                        )
+                elif has is True:
+                    self._orphan_strikes.pop(trade.ticker, None)
+                # has is None → transport error, leave the count unchanged
+
+                if self._orphan_strikes.get(trade.ticker, 0) >= self.ORPHAN_STRIKES:
+                    exec_broker = self._sim   # local stop/target management
 
             price = current_prices.get(trade.ticker)
             if price is None:
@@ -184,7 +219,7 @@ class Portfolio:
                 if new_stop > trade.stop_loss:
                     # Broker first: the ledger must never claim a tighter stop
                     # than the one actually resting at the broker.
-                    if self.broker.raise_stop(trade.ticker, new_stop):
+                    if exec_broker.raise_stop(trade.ticker, new_stop):
                         self.ledger.update_stop_loss(trade.id, new_stop)
                         logger.info(
                             "TRAIL %-8s  +%.1fR → stop raised $%.2f → $%.2f",
@@ -193,7 +228,7 @@ class Portfolio:
                         # Refresh so the stop-loss check below sees the new value
                         trade = self.ledger.get_trade(trade.id)  # type: ignore[assignment]
 
-            if self.broker.manages_exits:
+            if exec_broker.manages_exits:
                 continue   # stop/target execution lives at the broker
 
             # ── Local exit checks (simulated broker only) ──────────────────
@@ -217,16 +252,17 @@ class Portfolio:
             else:
                 continue
 
-            fill = self.broker.close(trade.ticker, price, reason)
+            fill = exec_broker.close(trade.ticker, price, reason)
             if fill is None:
                 continue
             closed_trade = self._record_close(trade, fill.price, reason)
             logger.info(
-                "CLOSE %-8s @ $%8.2f  PnL $%+.2f (%+.1f%%)  [%s]",
-                trade.ticker, price,
-                closed_trade.pnl or 0, closed_trade.pnl_pct or 0, reason,
+                "CLOSE %-8s @ $%8.2f  PnL $%+.2f (%+.1f%%)  [%s @ %s]",
+                trade.ticker, price, closed_trade.pnl or 0,
+                closed_trade.pnl_pct or 0, reason, exec_broker.name,
             )
             closed.append(closed_trade)
+            self._orphan_strikes.pop(trade.ticker, None)
         return closed
 
     def eod_close_stocks(self, current_prices: dict[str, float]) -> list[Trade]:
@@ -237,15 +273,19 @@ class Portfolio:
         for trade in self.open_trades:
             if trade.asset_type != "stock":
                 continue
+            # Orphaned trades (see check_exits) are liquidated locally —
+            # the managing broker holds nothing to close.
+            orphaned = self._orphan_strikes.get(trade.ticker, 0) >= self.ORPHAN_STRIKES
+            exec_broker: Broker = self._sim if orphaned else self.broker
             price = current_prices.get(trade.ticker)
-            if price is None and not self.broker.manages_exits:
+            if price is None and not exec_broker.manages_exits:
                 # The simulator needs a price to fill against; a managing
                 # broker liquidates at market without one.
                 logger.warning(
                     "EOD: no price for %s — leaving open, will retry", trade.ticker
                 )
                 continue
-            fill = self.broker.close(trade.ticker, price or 0.0, "eod_close")
+            fill = exec_broker.close(trade.ticker, price or 0.0, "eod_close")
             if fill is None:
                 logger.warning(
                     "EOD: close failed for %s — leaving open, will retry",
