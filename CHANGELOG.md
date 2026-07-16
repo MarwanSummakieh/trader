@@ -1,5 +1,20 @@
 # Patch Notes
 
+## 2026-07-16 — Orphaned trades manage themselves
+
+### Fixed
+
+- **Orphaned ledger trades froze forever under a managing broker.** Trades
+  opened by the simulator before a switch to `BROKER=alpaca` have no
+  server-side orders backing them, so broker-side exits could never fire —
+  observed live: five crypto positions sat frozen for days, two of them
+  *past their take-profit* and one *below its stop*, holding 74% of capital.
+  Now, once the broker denies holding a position for 3 consecutive monitor
+  cycles, the trade is managed locally with simulated fills — stops,
+  targets, trailing and EOD liquidation all work again until it closes.
+  Transport errors don't count toward (or reset) the orphan verdict, so a
+  flaky network can't misclassify a real position.
+
 ## 2026-07-08 — Crypto capital cap
 
 ### Fixed
