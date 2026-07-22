@@ -131,6 +131,7 @@ class SignalData:
     above_vwap: np.ndarray = None  # bool
     macd_pos: np.ndarray = None    # bool: MACD histogram > 0
     ema_aligned: np.ndarray = None # bool: close > ema9 > ema21
+    brk_ok: np.ndarray = None      # bool: close > prior CRYPTO_BREAKOUT_BARS high
     # When set, this boolean mask REPLACES the score/rsi/vol/trend/regime
     # entry filters in simulate() (structural rules like EOD cutoff and
     # same-session checks still apply). Lets research scripts test arbitrary
@@ -221,6 +222,8 @@ def build_signal_frame(
         stop_dist=np.maximum(atr_v * 1.5, c * config.STOP_LOSS_PCT),
         bb_pct=bb_pct, adx=adx_v, above_vwap=c > vw_v,
         macd_pos=mh_v > 0, ema_aligned=(c > e9) & (e9 > e21),
+        # NaN comparison is False — warmup bars can never be breakouts.
+        brk_ok=(close > high.rolling(config.CRYPTO_BREAKOUT_BARS).max().shift(1)).to_numpy(),
     )
 
 
@@ -234,6 +237,9 @@ class SimParams:
     entry_adx_min: float = config.ENTRY_ADX_MIN
     require_uptrend: bool = config.REQUIRE_DAILY_UPTREND
     stock_entry_cutoff: Optional[dtime] = config.STOCK_ENTRY_CUTOFF
+    # Crypto entry rule (mirrors src.scanner._crypto_entry_ok)
+    crypto_min_vol_ratio: float = config.CRYPTO_MIN_VOL_RATIO
+    crypto_require_btc_uptrend: bool = config.CRYPTO_REQUIRE_BTC_UPTREND
     # Exits & sizing
     take_profit_r_mult: float = config.TAKE_PROFIT_R_MULT
     trail_trigger_r: float = config.PROFIT_TRAIL_TRIGGER_R
@@ -305,6 +311,16 @@ EOD_T = config.EOD_CLOSE_TIME     # 15:45 ET
 def simulate(frames: dict[str, SignalData], params: SimParams) -> SimResult:
     all_ts = sorted({t for f in frames.values() for t in f.ts})
     tickers = list(frames)
+
+    # BTC regime lookup for the crypto entry gate. Fails closed: no BTC
+    # frame (or no BTC bar at that timestamp) means no crypto entries.
+    btc_f = next((f for f in frames.values() if f.ticker == "BTC-USD"), None)
+
+    def btc_ok(sig_ts) -> bool:
+        if btc_f is None:
+            return False
+        k = btc_f.ts_pos.get(sig_ts)
+        return bool(btc_f.regime_ok[k]) if k is not None else False
 
     capital = params.starting_capital
     open_pos: dict[str, BTTrade] = {}
@@ -394,8 +410,20 @@ def simulate(frames: dict[str, SignalData], params: SimParams) -> SimResult:
             if f.signal is not None:
                 if not f.signal[j]:
                     continue
+            elif f.asset_type == "crypto":
+                # Mirrors src.scanner._crypto_entry_ok (regime-gated breakout)
+                if f.score[j] < 0:                      # indicator warmup
+                    continue
+                if f.brk_ok is None or not f.brk_ok[j]:
+                    continue
+                if not f.regime_ok[j]:
+                    continue
+                if f.vol_ratio[j] < params.crypto_min_vol_ratio:
+                    continue
+                if params.crypto_require_btc_uptrend and not btc_ok(f.ts[j]):
+                    continue
             else:
-                # Mirrors src.scanner.get_buy_candidates
+                # Mirrors src.scanner._stock_entry_ok
                 if f.score[j] < 0:                      # indicator warmup
                     continue
                 if not f.ema_aligned[j]:
@@ -488,6 +516,7 @@ def slice_frames(
             stop_dist=f.stop_dist[idx], bb_pct=f.bb_pct[idx],
             adx=f.adx[idx], above_vwap=f.above_vwap[idx],
             macd_pos=f.macd_pos[idx], ema_aligned=f.ema_aligned[idx],
+            brk_ok=f.brk_ok[idx] if f.brk_ok is not None else None,
             signal=f.signal[idx] if f.signal is not None else None,
         )
     return out

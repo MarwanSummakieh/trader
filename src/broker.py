@@ -14,7 +14,7 @@ Alpaca notes:
 - Bracket orders require whole-share quantities — fractional qty is rounded
   down (a position that rounds to 0 shares is skipped).
 - Stocks only. Crypto symbols use different symbology and no bracket
-  support; crypto is disabled in config anyway.
+  support; the crypto instance runs BROKER=paper (SimBroker) instead.
 - CFD-style LEVERAGE/MARGIN_CALL_LOSS semantics apply only to SimBroker.
 """
 

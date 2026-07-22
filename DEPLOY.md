@@ -49,15 +49,17 @@ picking up a new commit requires a genuine rebuild (not just "recreate").
 If the version is old after updating, the deploy didn't take — the image is
 stale (rebuild / re-pull) rather than the code.
 
-## The ledger is separate from the code
+## The ledgers are separate from the code
 
-The trade database lives in the `trader_data` Docker volume
-(`/app/data/ledger.db`), which updates never touch. To wind down open trades
-before switching brokers, use the bot container's **Exec/Terminal tab** in
-the Docker UI:
+Both trade databases live in the `trader_data` Docker volume — the stock
+instance's `/app/data/ledger.db` and the crypto instance's
+`/app/data/ledger-crypto.db` — which updates never touch. To wind down open
+trades before switching brokers, use the **Exec/Terminal tab** of the
+relevant bot container (`bot` or `bot-crypto`) in the Docker UI:
 
 ```
 python close_all.py --yes
 ```
 
-Or delete the `trader_data` volume for a clean $10,000 start.
+Or delete the `trader_data` volume for a clean start ($10,000 stocks /
+$1,000 crypto).

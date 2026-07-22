@@ -1,5 +1,72 @@
 # Patch Notes
 
+## 2026-07-22 — A crypto-native entry rule (regime-gated 8h breakout)
+
+### Changed
+
+- **Crypto no longer trades the stock momentum rule.** New crypto-only
+  entry (`src/scanner.py::_crypto_entry_ok`): last completed 5m close above
+  the prior `CRYPTO_BREAKOUT_BARS` (96 bars = 8h) high, own daily-EMA50
+  regime (deliberately not toggleable — the gates ARE the strategy), BTC
+  above its daily EMA50 (`CRYPTO_REQUIRE_BTC_UPTREND`, fails closed when
+  BTC is missing from a scan), and volume ≥ `CRYPTO_MIN_VOL_RATIO` (1.2x
+  20-bar average). Exits unchanged: ATR stop, 3R target, 1.5R/1.5R trail.
+- **Research verdict, kept honest.** Four long-only families tested on 59d
+  of 5m bars (train/holdout split) and 1y of daily bars, in a tape where
+  every universe coin fell 45–80% (max DD to -85%):
+  - stock momentum rule on crypto: **-0.23R** over 121 train trades
+  - 5m mean reversion (band reclaim / RSI turn / dip-buy): ≈0 or negative
+    in every variant
+  - daily Donchian trend-following (10/20/30/55d): **-0.8R and worse** —
+    bear rallies print new daily highs, then collapse
+  - **this rule: +0.26R (13 trades) train, -0.13R (11 trades) holdout** —
+    the July 15 breakout cluster reversed; the July 19-20 cluster was in
+    profit at window end. Full 59d: 24 trades, +0.08R, PF 1.13, DD -3.7%.
+  The edge is **unproven** (tiny samples by construction — the gates keep
+  it flat most of the time). Adopted because it is strictly safer than the
+  stock rule the crypto instance previously ran (~2% max backtest DD vs
+  ~8% steady bleed) and holds near-zero exposure outside confirmed
+  uptrends — the only condition in which any tested long rule made money.
+  Treat live results as data collection.
+- **Backtest engine parity.** `build_signal_frame` exposes `brk_ok`,
+  `simulate()` applies the crypto rule to crypto frames (BTC gate fails
+  closed, mirroring the scanner), and `slice_frames` carries the new
+  column — `python backtest.py --crypto-only` now backtests the live
+  crypto strategy, not the stock rule.
+- The analyzer exposes `breakout_ok` (False during indicator warmup — an
+  unknown breakout level blocks entries) and tags crypto scan results with
+  an "8h-high breakout" signal for the dashboard.
+
+### Added
+
+- Tests for every crypto entry clause: breakout required, own regime not
+  bypassable via `REQUIRE_DAILY_UPTREND`, inclusive volume floor, BTC gate
+  fail-closed / uptrend / config-off, and independence from the stock
+  momentum clauses.
+
+## 2026-07-22 — Separate stock and crypto instances
+
+### Added
+
+- **Two bot instances, two ledgers.** docker-compose now starts `bot`
+  (stocks, $10k, Alpaca bracket orders, crypto pinned off) and `bot-crypto`
+  (crypto-only, $1,000, own `ledger-crypto.db`, scanning 24/7). New
+  `ENABLE_STOCKS` toggle mirrors `ENABLE_CRYPTO` so an instance trades a
+  single asset class; the ENABLE_* flags are pinned per-service in compose
+  so a stray `.env` value can't make both instances trade the same class.
+  The crypto instance runs `BROKER=paper` (AlpacaBroker is stocks-only — no
+  crypto symbology or bracket support) and `CRYPTO_MAX_CAPITAL_PCT=1.0`,
+  since there is no stock session to reserve capital for.
+- **`/crypto` dashboard page.** One server process reads both ledgers:
+  `/` + `/api/*` serve the stock instance, `/crypto` + `/api/crypto/*` the
+  crypto instance (`CRYPTO_DB_PATH`, `CRYPTO_STARTING_CAPITAL`). Same
+  single-page app — it switches API base on its pathname — with a
+  STOCKS/CRYPTO switcher in the header and an always-on "CRYPTO 24/7"
+  market pill on the crypto page.
+- **Server tests** (`tests/test_server.py`): per-instance ledger isolation,
+  starting capitals, the 24/7 market flag, and the `/crypto` page route.
+  New dev dependency `httpx2` (fastapi TestClient transport).
+
 ## 2026-07-16 — Orphaned trades manage themselves
 
 ### Fixed
