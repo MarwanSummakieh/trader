@@ -83,6 +83,26 @@
 
     .hdiv { width: 1px; height: 18px; background: var(--border2); flex-shrink: 0; }
 
+    /* ── Instance switcher (stocks / crypto) ─────────── */
+    .inst-nav { display: flex; gap: 4px; flex-shrink: 0; }
+    .inst-nav a {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      padding: 3px 9px;
+      border-radius: 5px;
+      text-decoration: none;
+      color: var(--dim);
+      border: 1px solid transparent;
+      transition: color .15s, background .15s;
+    }
+    .inst-nav a:hover { color: var(--muted); }
+    .inst-nav a.active {
+      color: var(--indigo);
+      background: var(--indigo2);
+      border-color: rgba(129,140,248,.25);
+    }
+
     #clock {
       font-family: var(--mono);
       font-size: 12px;
@@ -467,6 +487,10 @@
 
 <header>
   <span class="logo">◈ TRADER</span>
+  <nav class="inst-nav">
+    <a href="/" id="nav-stocks">STOCKS</a>
+    <a href="/crypto" id="nav-crypto">CRYPTO</a>
+  </nav>
   <span id="ver" class="d" style="font-size:10px;font-family:var(--mono)"></span>
   <div class="hdiv"></div>
   <span id="clock">--:--:--</span>
@@ -556,7 +580,13 @@
 
 <script>
 const $ = id => document.getElementById(id);
-const API = '';
+
+// ── Instance (same page serves / for stocks and /crypto for crypto) ────────
+const CRYPTO_MODE = location.pathname.replace(/\/+$/, '').endsWith('/crypto');
+const API = CRYPTO_MODE ? '/api/crypto' : '/api';
+const TAB_KEY = CRYPTO_MODE ? 'trader-tab-crypto' : 'trader-tab';
+document.title = CRYPTO_MODE ? 'Trader — Crypto' : 'Trader Dashboard';
+$(CRYPTO_MODE ? 'nav-crypto' : 'nav-stocks').classList.add('active');
 
 // ── Tabs ────────────────────────────────────────────────────────────────────
 document.querySelectorAll('.tab').forEach(btn => {
@@ -565,11 +595,11 @@ document.querySelectorAll('.tab').forEach(btn => {
     document.querySelectorAll('.tabpanel').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
     $('tab-' + btn.dataset.tab).classList.add('active');
-    try { localStorage.setItem('trader-tab', btn.dataset.tab); } catch(_) {}
+    try { localStorage.setItem(TAB_KEY, btn.dataset.tab); } catch(_) {}
   });
 });
 try {
-  const saved = localStorage.getItem('trader-tab');
+  const saved = localStorage.getItem(TAB_KEY);
   if (saved) document.querySelector(`.tab[data-tab="${saved}"]`)?.click();
 } catch(_) {}
 
@@ -627,7 +657,8 @@ function renderHeader(s) {
   $('ver').textContent = s.version ? 'v' + s.version : '';
   $('clock').textContent = s.time + ' ' + s.timezone;
   const pill = $('market-pill');
-  $('market-txt').textContent = s.market_open ? 'MARKET OPEN' : 'MARKET CLOSED';
+  $('market-txt').textContent = CRYPTO_MODE ? 'CRYPTO 24/7'
+    : (s.market_open ? 'MARKET OPEN' : 'MARKET CLOSED');
   pill.className = s.market_open ? 'open' : 'closed';
   $('scan-info').textContent = s.last_scan_time ? 'last scan ' + s.last_scan_time : '';
 }
@@ -779,11 +810,11 @@ function renderTrades(trades, stats) {
 async function refresh() {
   try {
     const [status, positions, scans, trades, stats] = await Promise.all([
-      fetch(`${API}/api/status`).then(r => r.json()),
-      fetch(`${API}/api/positions`).then(r => r.json()),
-      fetch(`${API}/api/scans`).then(r => r.json()),
-      fetch(`${API}/api/trades`).then(r => r.json()),
-      fetch(`${API}/api/stats`).then(r => r.json()),
+      fetch(`${API}/status`).then(r => r.json()),
+      fetch(`${API}/positions`).then(r => r.json()),
+      fetch(`${API}/scans`).then(r => r.json()),
+      fetch(`${API}/trades`).then(r => r.json()),
+      fetch(`${API}/stats`).then(r => r.json()),
     ]);
     $('err').classList.remove('show');
     renderHeader(status);

@@ -232,11 +232,16 @@ class TradingBot:
     # ── Main loop ──────────────────────────────────────────────────────────
 
     def run(self):
+        assets = [name for name, on in (("stocks", config.ENABLE_STOCKS),
+                                        ("crypto", config.ENABLE_CRYPTO)) if on]
         console.print(
             f"[bold green]Day Trading Bot — starting up[/bold green]  "
             f"[dim]v{config.VERSION}[/dim]"
         )
-        console.print(f"Execution: [bold]{self.broker.name}[/bold]")
+        console.print(
+            f"Execution: [bold]{self.broker.name}[/bold]  |  "
+            f"Assets: [bold]{'+'.join(assets) or 'NONE (check ENABLE_* env)'}[/bold]"
+        )
         if hasattr(self.broker, "test_connection"):
             ok, msg = self.broker.test_connection()
             style = "green" if ok else "bold red"
@@ -259,9 +264,10 @@ class TradingBot:
                     self.run_eod_close()
 
                 # Determine which asset classes to scan this cycle
+                stock_universe = STOCKS if config.ENABLE_STOCKS else []
                 crypto_universe = CRYPTO if config.ENABLE_CRYPTO else []
                 if self._market_open() and not self._past_eod():
-                    stocks_to_scan, crypto_to_scan = STOCKS, crypto_universe
+                    stocks_to_scan, crypto_to_scan = stock_universe, crypto_universe
                 else:
                     stocks_to_scan, crypto_to_scan = [], crypto_universe  # crypto runs 24/7
 

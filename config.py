@@ -25,7 +25,7 @@ def _env(name: str, default: str) -> str:
 # Deploy stamp — bump when cutting a release (shown at bot startup, in the
 # dashboard header, and in /api/status) so "which code is running?" is
 # always answerable at a glance.
-VERSION = "2026-07-05"
+VERSION = "2026-07-22"
 
 # --- Capital & Risk ---
 # Defaults below are the backtest-validated set (2026-07-02, 59d of 5m bars,
@@ -85,9 +85,38 @@ ENTRY_ADX_MIN = float(_env("ENTRY_ADX_MIN", "30"))
 _cutoff = _env("STOCK_ENTRY_CUTOFF", "12:00").split(":")
 STOCK_ENTRY_CUTOFF = time(int(_cutoff[0]), int(_cutoff[1]))
 
-# Crypto has no validated entry rule (momentum tested negative-edge, and the
-# oversold-bounce edge did not survive execution testing) — off by default.
+# The bot runs as per-asset-class instances (docker-compose starts one of
+# each): the stock instance keeps the defaults below, the crypto instance
+# sets ENABLE_STOCKS=0 ENABLE_CRYPTO=1 with its own DB_PATH and capital.
+ENABLE_STOCKS = _env("ENABLE_STOCKS", "1").lower() in ("1", "true", "yes")
+
+# Crypto is off by default in the stock instance; the dedicated crypto
+# instance (docker-compose bot-crypto) turns it on.
 ENABLE_CRYPTO = _env("ENABLE_CRYPTO", "0").lower() in ("1", "true", "yes")
+
+# --- Crypto entry rule: regime-gated 8h breakout (researched 2026-07-22) ---
+# Four long-only families were tested on 59d of 5m bars (train/holdout
+# split) and 1y of daily bars, in a tape where every universe symbol fell
+# 45-80% over the year:
+#   - stock momentum rule applied to crypto: -0.23R over 121 train trades
+#   - 5m mean reversion (band reclaim / RSI turn / dip-buy): all ≈0 or worse
+#   - daily Donchian trend-following (10/20/30/55d): -0.8R and worse — bear
+#     rallies make new daily highs and then collapse
+#   - THIS RULE (5m close > prior 8h high, own daily-EMA50 regime, BTC
+#     daily-EMA50 regime, volume >= 1.2x): train +0.26R (13 trades),
+#     holdout -0.13R (11 trades). Edge UNPROVEN — samples are tiny by
+#     construction, because the gates keep it flat most of the time.
+# Adopted anyway: it is strictly safer than the stock rule the crypto
+# instance previously traded (max backtest DD ~2% vs ~8% steady bleed),
+# and its exposure is near zero unless the coin AND BTC are in daily
+# uptrends — the only condition under which ANY tested long rule made
+# money. Treat live results as data collection, not a validated edge.
+CRYPTO_BREAKOUT_BARS = int(_env("CRYPTO_BREAKOUT_BARS", "96"))   # 96 x 5m = 8h
+CRYPTO_MIN_VOL_RATIO = float(_env("CRYPTO_MIN_VOL_RATIO", "1.2"))
+# BTC is the regime driver for the whole asset class: no crypto entries
+# while BTC is below its daily EMA50. Fails CLOSED — if BTC data is missing
+# from a scan, no crypto entries that cycle.
+CRYPTO_REQUIRE_BTC_UPTREND = _env("CRYPTO_REQUIRE_BTC_UPTREND", "1").lower() in ("1", "true", "yes")
 
 # When crypto IS enabled it scans 24/7 while stocks only trade 9:30–16:00 ET,
 # so overnight crypto entries would otherwise consume all buying power before
@@ -150,6 +179,13 @@ VOLUME_LOOKBACK = 20
 
 # --- Database ---
 DB_PATH = _env("DB_PATH", "ledger.db")
+
+# --- Crypto instance (read by the dashboard server only) ---
+# The crypto bot container runs with DB_PATH=<CRYPTO_DB_PATH> and
+# STARTING_CAPITAL=<CRYPTO_STARTING_CAPITAL>; the server needs both values
+# under separate names so one process can serve / (stocks) and /crypto.
+CRYPTO_DB_PATH = _env("CRYPTO_DB_PATH", "ledger-crypto.db")
+CRYPTO_STARTING_CAPITAL = float(_env("CRYPTO_STARTING_CAPITAL", "1000"))
 
 # --- Broker execution ---
 # "paper"  = internal simulator (default): instant fills + slippage model.

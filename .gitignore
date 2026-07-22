@@ -8,6 +8,9 @@ cache/
 ledger.db
 ledger.db-wal
 ledger.db-shm
+ledger-crypto.db
+ledger-crypto.db-wal
+ledger-crypto.db-shm
 bot.log
 
 # Python

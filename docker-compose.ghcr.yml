@@ -14,12 +14,17 @@
 # (everything else has defaults in config.py)
 
 services:
+  # Stock instance — Alpaca bracket orders, US session hours, $10k ledger.
+  # ENABLE_* pinned here so a stray .env value can't make BOTH instances
+  # trade the same asset class against the same signals.
   bot:
     image: ghcr.io/marwansummakieh/trader:latest
     command: python main.py
     env_file: .env
     environment:
       - DB_PATH=/app/data/ledger.db
+      - ENABLE_STOCKS=1
+      - ENABLE_CRYPTO=0
     volumes:
       - trader_data:/app/data
     restart: unless-stopped
@@ -29,12 +34,40 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # Crypto instance — own ledger, $1k capital, scans 24/7. BROKER=paper
+  # because AlpacaBroker is stocks-only (crypto uses different symbology and
+  # has no bracket-order support); fills run on the internal simulator.
+  # CRYPTO_MAX_CAPITAL_PCT=1.0: the stock-reservation cap is pointless when
+  # the whole instance is crypto.
+  bot-crypto:
+    image: ghcr.io/marwansummakieh/trader:latest
+    command: python main.py
+    env_file: .env
+    environment:
+      - DB_PATH=/app/data/ledger-crypto.db
+      - ENABLE_STOCKS=0
+      - ENABLE_CRYPTO=1
+      - STARTING_CAPITAL=1000
+      - CRYPTO_MAX_CAPITAL_PCT=1.0
+      - BROKER=paper
+    volumes:
+      - trader_data:/app/data
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # One dashboard for both instances: / = stocks, /crypto = crypto.
   server:
     image: ghcr.io/marwansummakieh/trader:latest
     command: python server.py
     env_file: .env
     environment:
       - DB_PATH=/app/data/ledger.db
+      - CRYPTO_DB_PATH=/app/data/ledger-crypto.db
+      - CRYPTO_STARTING_CAPITAL=1000
     volumes:
       - trader_data:/app/data
     ports:
@@ -42,6 +75,7 @@ services:
     restart: unless-stopped
     depends_on:
       - bot
+      - bot-crypto
 
   tunnel:
     image: cloudflare/cloudflared:latest

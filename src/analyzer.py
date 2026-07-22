@@ -50,6 +50,9 @@ class Analysis:
     bb_pct: float             # 0 = at lower band, 1 = at upper band
     trend: str                # "bullish" | "bearish" | "neutral"
     regime_ok: bool = True    # price above daily EMA50 (long regime gate)
+    # Crypto entry feature: last completed close above the prior
+    # CRYPTO_BREAKOUT_BARS-bar high (False during warmup — fails closed).
+    breakout_ok: bool = False
 
     timestamp: datetime = field(default_factory=lambda: datetime.now(ET))
 
@@ -133,6 +136,10 @@ def analyze(
 
     intra["vol_ratio"] = ind.volume_ratio(intra["Volume"], config.VOLUME_LOOKBACK)
 
+    # Prior-N-bar high for the crypto breakout entry (see scanner). shift(1)
+    # keeps the current bar out of its own breakout level.
+    prior_high = intra["High"].rolling(config.CRYPTO_BREAKOUT_BARS).max().shift(1)
+
     # ── Daily indicators for trend context ───────────────────────────────
     daily["ema50"] = ind.ema(daily["Close"], config.EMA_SLOW)
     daily["adx"] = ind.adx(daily["High"], daily["Low"], daily["Close"], config.ADX_PERIOD)
@@ -153,6 +160,9 @@ def analyze(
     adx_val = _f(daily["adx"], 15.0)
     bb_up = _f(intra["bb_up"], price * 1.02)
     bb_low_val = _f(intra["bb_low"], price * 0.98)
+    # NaN (warmup) falls back to +inf so an unknown breakout level blocks
+    # entries — the safe direction.
+    breakout_ok = price > _f(prior_high, float("inf"))
 
     bb_range = bb_up - bb_low_val
     bb_pct = (price - bb_low_val) / bb_range if bb_range > 0 else 0.5
@@ -175,6 +185,8 @@ def analyze(
     # ── Signal text ───────────────────────────────────────────────────────
     signals = _signals(intra, rsi_val, macd_hist_val, vol_ratio_val,
                        price, ema9_val, ema21_val, vwap_val, adx_val)
+    if asset_type == "crypto" and breakout_ok:
+        signals.insert(0, f"{config.CRYPTO_BREAKOUT_BARS * 5 / 60:g}h-high breakout")
 
     # ── Levels: ATR-based stop, R-multiple target ─────────────────────────
     stop_loss = price - max(atr_val * 1.5, price * config.STOP_LOSS_PCT)
@@ -190,6 +202,7 @@ def analyze(
         # NaN EMA50 falls back to price above, making this False — blocking
         # entries when the daily trend is unknown is the safe direction.
         regime_ok=price > ema50_val,
+        breakout_ok=breakout_ok,
     )
 
 

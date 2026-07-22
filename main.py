@@ -90,7 +90,8 @@ def main():
         from src.scanner import scan_universe
         from src.universe import CRYPTO, STOCKS
         console.print("[cyan]Running single scan...[/cyan]")
-        analyses = scan_universe(STOCKS, CRYPTO if config.ENABLE_CRYPTO else [])
+        analyses = scan_universe(STOCKS if config.ENABLE_STOCKS else [],
+                                 CRYPTO if config.ENABLE_CRYPTO else [])
         console.print(f"\n[bold]Top 20 Opportunities[/bold] ({len(analyses)} analysed)\n")
         for i, a in enumerate(analyses[:20], 1):
             sc_color = "green" if a.score >= 65 else "yellow" if a.score >= 45 else "red"

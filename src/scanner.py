@@ -51,33 +51,50 @@ def scan_universe(
     return results
 
 
+# Regime driver for every crypto entry (see _crypto_entry_ok).
+BTC_TICKER = "BTC-USD"
+
+
 def get_buy_candidates(
     analyses: list[Analysis],
     existing_tickers: set[str],
     now: Optional[datetime] = None,
 ) -> list[Analysis]:
     """
-    Backtest-validated momentum entry (2026-07-02, 59d/5m, train+holdout):
+    Entry rules per asset class — each validated (or honestly documented)
+    on its own data:
+
+    Stocks — momentum (2026-07-02, 59d/5m, train+holdout):
     - Intraday EMA stack aligned: price > EMA9 > EMA21
     - Daily ADX > ENTRY_ADX_MIN (trending, not chopping)
     - RSI in [ENTRY_RSI_MIN, ENTRY_RSI_MAX) — momentum, not blow-off
     - Regime: price above daily EMA50 (unless disabled)
-    - Stocks: entries before STOCK_ENTRY_CUTOFF ET only (edge needs hours
-      of runway before the 15:45 EOD liquidation)
-    - Not already in a position
+    - Entries before STOCK_ENTRY_CUTOFF ET only (edge needs hours of
+      runway before the 15:45 EOD liquidation)
 
-    The composite score is deliberately NOT used here — it showed no
-    predictive power in backtesting. It remains for display/analysis only.
+    Crypto — regime-gated 8h breakout (2026-07-22; see config.py for the
+    research verdict — edge unproven, gates chosen for capital
+    preservation):
+    - Last completed 5m close above the prior CRYPTO_BREAKOUT_BARS-bar high
+    - Own regime: price above its daily EMA50 (NOT toggleable — the gates
+      ARE the strategy)
+    - BTC regime: BTC above its daily EMA50; fails closed when BTC is
+      missing from the scan
+    - Volume >= CRYPTO_MIN_VOL_RATIO x its 20-bar average
+
+    Common: not already in a position. The composite score is deliberately
+    NOT used here — it showed no predictive power in backtesting. It
+    remains for display/analysis only.
     """
     now = now or datetime.now(ET)
+    btc = next((a for a in analyses if a.ticker == BTC_TICKER), None)
+    btc_uptrend = bool(btc and btc.regime_ok)
+
     candidates = [
         a for a in analyses
-        if a.price > a.ema9 > a.ema21
-        and a.adx_val > config.ENTRY_ADX_MIN
-        and config.ENTRY_RSI_MIN <= a.rsi < config.ENTRY_RSI_MAX
-        and (a.regime_ok or not config.REQUIRE_DAILY_UPTREND)
-        and not (a.asset_type == "stock" and now.time() >= config.STOCK_ENTRY_CUTOFF)
-        and a.ticker not in existing_tickers
+        if a.ticker not in existing_tickers
+        and (_crypto_entry_ok(a, btc_uptrend) if a.asset_type == "crypto"
+             else _stock_entry_ok(a, now))
     ]
     if not config.EARNINGS_FILTER:
         return candidates
@@ -87,3 +104,22 @@ def get_buy_candidates(
         a for a in candidates
         if a.asset_type != "stock" or not in_earnings_window(a.ticker, now.date())
     ]
+
+
+def _stock_entry_ok(a: Analysis, now: datetime) -> bool:
+    return (
+        a.price > a.ema9 > a.ema21
+        and a.adx_val > config.ENTRY_ADX_MIN
+        and config.ENTRY_RSI_MIN <= a.rsi < config.ENTRY_RSI_MAX
+        and (a.regime_ok or not config.REQUIRE_DAILY_UPTREND)
+        and now.time() < config.STOCK_ENTRY_CUTOFF
+    )
+
+
+def _crypto_entry_ok(a: Analysis, btc_uptrend: bool) -> bool:
+    return (
+        a.breakout_ok
+        and a.regime_ok
+        and a.volume_ratio >= config.CRYPTO_MIN_VOL_RATIO
+        and (btc_uptrend or not config.CRYPTO_REQUIRE_BTC_UPTREND)
+    )
