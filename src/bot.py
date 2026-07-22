@@ -31,6 +31,16 @@ console = Console()
 ET = pytz.timezone("America/New_York")
 
 
+def universes_to_scan(stock_session_open: bool) -> tuple[list[str], list[str]]:
+    """Universe per asset class for one scan cycle. Crypto scans 24/7 —
+    around the clock, weekends included, from the very first cycle; only
+    stocks are gated on the (pre-EOD) US session."""
+    return (
+        STOCKS if config.ENABLE_STOCKS and stock_session_open else [],
+        CRYPTO if config.ENABLE_CRYPTO else [],
+    )
+
+
 class TradingBot:
     def __init__(self):
         self.ledger = Ledger(config.DB_PATH)
@@ -116,10 +126,15 @@ class TradingBot:
     def display(self):
         console.clear()
         now = self._now()
-        market_tag = "[green]OPEN[/green]" if self._market_open() else "[dim]CLOSED[/dim]"
+        if config.ENABLE_STOCKS:
+            market_tag = ("Market: [green]OPEN[/green]" if self._market_open()
+                          else "Market: [dim]CLOSED[/dim]")
+        else:
+            # Crypto-only instance: there is no session to wait for.
+            market_tag = "Crypto: [green]24/7[/green]"
         console.print(Panel(
             f"[bold]Day Trading Bot[/bold]  {now.strftime('%Y-%m-%d %H:%M:%S')} ET  |  "
-            f"Market: {market_tag}  |  Exec: {self.broker.name}",
+            f"{market_tag}  |  Exec: {self.broker.name}",
             style="bold blue", expand=False,
         ))
 
@@ -263,15 +278,10 @@ class TradingBot:
                 if self._market_open() and self._past_eod() and not self._eod_closed_today:
                     self.run_eod_close()
 
-                # Determine which asset classes to scan this cycle
-                stock_universe = STOCKS if config.ENABLE_STOCKS else []
-                crypto_universe = CRYPTO if config.ENABLE_CRYPTO else []
-                if self._market_open() and not self._past_eod():
-                    stocks_to_scan, crypto_to_scan = stock_universe, crypto_universe
-                else:
-                    stocks_to_scan, crypto_to_scan = [], crypto_universe  # crypto runs 24/7
-
                 if self._due(self._last_scan, config.SCAN_INTERVAL_SECS):
+                    stocks_to_scan, crypto_to_scan = universes_to_scan(
+                        self._market_open() and not self._past_eod()
+                    )
                     self.run_scan(stocks_to_scan, crypto_to_scan)
 
                 if self._due(self._last_monitor, config.MONITOR_INTERVAL_SECS):

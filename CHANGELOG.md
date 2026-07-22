@@ -43,6 +43,13 @@
   bypassable via `REQUIRE_DAILY_UPTREND`, inclusive volume floor, BTC gate
   fail-closed / uptrend / config-off, and independence from the stock
   momentum clauses.
+- **Crypto scan cadence made structurally 24/7** (`src/bot.py::
+  universes_to_scan`). Behavior was already round-the-clock, but the
+  universe selection lived inside the market-hours branch where it read as
+  session-gated, and a crypto-only instance's console header showed
+  "Market: CLOSED" as if it were waiting for the open — it now shows
+  "Crypto: 24/7". Pinned by tests so a regression can't leave the crypto
+  instance idle until 9:30 ET.
 
 ## 2026-07-22 — Separate stock and crypto instances
 
