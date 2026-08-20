@@ -23,6 +23,9 @@ rule:
 - daily ADX > 30 (trending, not chopping)
 - RSI in [55, 70) — momentum, not blow-off
 - price above its daily EMA50 (regime gate)
+- enough intraday volatility that the ATR sets the stop, not the 2% floor
+  (volatility gate — in dead tape the bot deliberately sits flat, sometimes
+  for days, rather than churn scratch trades with no reachable target)
 - no entries after 12:00 ET, no entries on earnings reaction days
 
 Exits are ATR-anchored stops with a 3R take-profit and an R-based trailing

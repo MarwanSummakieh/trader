@@ -19,6 +19,7 @@ def passing(**kw):
     a = make_analysis(**kw)
     a.price, a.ema9, a.ema21 = 100.0, 99.0, 98.0     # EMA stack aligned
     a.adx_val, a.rsi, a.regime_ok = 35.0, 60.0, True
+    a.atr_binding = True                             # vol gate satisfied
     return a
 
 
@@ -69,6 +70,24 @@ def test_regime_gate(monkeypatch):
     a.regime_ok = False
     assert get_buy_candidates([a], set(), now=MORNING) == []
     monkeypatch.setattr(config, "REQUIRE_DAILY_UPTREND", False)
+    assert len(get_buy_candidates([a], set(), now=MORNING)) == 1
+
+
+def test_atr_stop_gate(monkeypatch):
+    no_earnings(monkeypatch)
+    a = passing()
+    a.atr_binding = False                            # stop pinned at the floor
+    assert get_buy_candidates([a], set(), now=MORNING) == []
+    monkeypatch.setattr(config, "REQUIRE_ATR_STOP", False)
+    assert len(get_buy_candidates([a], set(), now=MORNING)) == 1
+
+
+def test_atr_gate_does_not_apply_to_crypto(monkeypatch):
+    """passing_crypto() leaves atr_binding at its False default — the stock
+    volatility gate must never block a crypto candidate."""
+    no_earnings(monkeypatch)
+    a = passing_crypto()
+    assert a.atr_binding is False
     assert len(get_buy_candidates([a], set(), now=MORNING)) == 1
 
 

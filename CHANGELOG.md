@@ -1,5 +1,48 @@
 # Patch Notes
 
+## 2026-08-20 — Volatility regime gate for stock entries
+
+### Added
+
+- **ATR volatility gate** (`REQUIRE_ATR_STOP`, default on): stocks are only
+  entered when the ATR term actually sets the stop — `1.5*ATR(5m) >
+  STOP_LOSS_PCT * price`. When intraday volatility is below that line, the
+  stop is pinned at the 2% floor, R stops being volatility-scaled, and the
+  3R target sits several days of range away — those entries spent July and
+  August churning to 15:45 EOD scratches (live ledger and backtest agree:
+  of the last 40 live trades, 36 were `eod_close` netting ~$0 and none
+  reached take-profit or trail). New `Analysis.atr_binding` feature
+  (fail-closed on ATR warmup, stocks only — crypto has its own rule),
+  enforced in the scanner and mirrored in the backtest simulator
+  (`SignalData.atr_ok`, `SimParams.require_atr_stop`); low-vol scans are
+  labeled in the dashboard signal text.
+
+### Research (2026-08-20, 59d of 5m bars ending 08-19, train/holdout at 07-23)
+
+- The validated momentum edge **decayed across the window**: +0.15R →
+  +0.02R → −0.15R per walk-forward third; in the holdout month **no tested
+  long rule earned a single take-profit or trail exit**.
+- Fresh challenger families, all negative on train — recorded in
+  `config.py` so they aren't re-tried: EMA21-pullback reclaim, VWAP
+  reclaim, RSI-30 dip, lower-band reclaim, opening-range breakout (retest),
+  prior-day-high break, 8h-high stock breakout, BB-squeeze breakout,
+  gap-and-go, gap-fade, VWAP-hold, 3-bar momentum burst.
+- Softening the stop floor to 1% (keep trading quiet tape with smaller R)
+  loses: fees/slippage dominate small R. Removing the 15:45 EOD liquidation
+  is a wash on totals, doubles per-trade expectancy but locks capital
+  overnight, worsens drawdown, and takes uncapped gap risk (worst observed
+  fill: 3.8R below the stop) — rejected.
+- The gate itself is a **plateau, not a tuned point**: every threshold from
+  0.6× to 1.2× of the floor is positive on train (+0.23R to +0.50R/trade)
+  and takes **zero trades in the holdout month** — standing aside in a
+  regime where everything lost. Honesty note: the gated train subset is 35
+  trades, 95% CI [−0.20R, +0.65R] — treat the gate as preserving the
+  validated edge's operating conditions and preserving capital, not as
+  fresh proven alpha. Expect multi-day flat stretches while volatility is
+  dead; the exit set (3R target, 1.5R/1.5R trail) and RSI/ADX bands keep
+  their previously validated values (re-tuning them on 35 trades would be
+  overfitting).
+
 ## 2026-07-22 — A crypto-native entry rule (regime-gated 8h breakout)
 
 ### Changed

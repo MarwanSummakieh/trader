@@ -64,11 +64,15 @@ def get_buy_candidates(
     Entry rules per asset class — each validated (or honestly documented)
     on its own data:
 
-    Stocks — momentum (2026-07-02, 59d/5m, train+holdout):
+    Stocks — momentum (2026-07-02, 59d/5m, train+holdout; volatility gate
+    added 2026-08-20):
     - Intraday EMA stack aligned: price > EMA9 > EMA21
     - Daily ADX > ENTRY_ADX_MIN (trending, not chopping)
     - RSI in [ENTRY_RSI_MIN, ENTRY_RSI_MAX) — momentum, not blow-off
     - Regime: price above daily EMA50 (unless disabled)
+    - Volatility: the ATR term must set the stop, not the STOP_LOSS_PCT
+      floor (unless disabled) — quiet tape has no reachable 3R target and
+      backtests negative however entered; the bot stands aside instead
     - Entries before STOCK_ENTRY_CUTOFF ET only (edge needs hours of
       runway before the 15:45 EOD liquidation)
 
@@ -112,6 +116,7 @@ def _stock_entry_ok(a: Analysis, now: datetime) -> bool:
         and a.adx_val > config.ENTRY_ADX_MIN
         and config.ENTRY_RSI_MIN <= a.rsi < config.ENTRY_RSI_MAX
         and (a.regime_ok or not config.REQUIRE_DAILY_UPTREND)
+        and (a.atr_binding or not config.REQUIRE_ATR_STOP)
         and now.time() < config.STOCK_ENTRY_CUTOFF
     )
 

@@ -147,3 +147,31 @@ def test_no_entries_after_cutoff():
     ], signal_at=(0,))
     res = run(f)
     assert res.trades == []
+
+
+def test_builtin_stock_rule_respects_atr_gate():
+    """The builtin entry path (no research mask) must enforce atr_ok, and a
+    missing atr_ok array must fail closed. Research masks bypass the gate by
+    design, so this pins the path the CLI/validated numbers run through."""
+    def builtin_frame(atr_ok):
+        f = make_frame([(100, 101, 99, 100),
+                        (102, 103, 101, 102),
+                        (103, 104, 102, 103)], signal_at=())
+        f.signal = None                       # builtin rule path
+        if atr_ok is not None:
+            f.atr_ok = np.full(len(f.ts), atr_ok, dtype=bool)
+        return f
+
+    gated = SimParams(fee_slippage_pct=0.0, starting_capital=10_000.0,
+                      position_size_pct=0.15, require_atr_stop=True,
+                      sec_fee_rate=0.0, finra_taf_per_share=0.0,
+                      finra_taf_cap=0.0)
+    assert simulate({"TEST": builtin_frame(True)}, gated).trades != []
+    assert simulate({"TEST": builtin_frame(False)}, gated).trades == []
+    assert simulate({"TEST": builtin_frame(None)}, gated).trades == []
+
+    ungated = SimParams(fee_slippage_pct=0.0, starting_capital=10_000.0,
+                        position_size_pct=0.15, require_atr_stop=False,
+                        sec_fee_rate=0.0, finra_taf_per_share=0.0,
+                        finra_taf_cap=0.0)
+    assert simulate({"TEST": builtin_frame(False)}, ungated).trades != []

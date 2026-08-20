@@ -132,6 +132,7 @@ class SignalData:
     macd_pos: np.ndarray = None    # bool: MACD histogram > 0
     ema_aligned: np.ndarray = None # bool: close > ema9 > ema21
     brk_ok: np.ndarray = None      # bool: close > prior CRYPTO_BREAKOUT_BARS high
+    atr_ok: np.ndarray = None      # bool: ATR term beats the stop floor (NaN → False)
     # When set, this boolean mask REPLACES the score/rsi/vol/trend/regime
     # entry filters in simulate() (structural rules like EOD cutoff and
     # same-session checks still apply). Lets research scripts test arbitrary
@@ -224,6 +225,9 @@ def build_signal_frame(
         macd_pos=mh_v > 0, ema_aligned=(c > e9) & (e9 > e21),
         # NaN comparison is False — warmup bars can never be breakouts.
         brk_ok=(close > high.rolling(config.CRYPTO_BREAKOUT_BARS).max().shift(1)).to_numpy(),
+        # Raw ATR series, NOT atr_v — its warmup fallback (2% of price)
+        # would wrongly pass the gate. NaN comparison is False (fail closed).
+        atr_ok=(atr * 1.5 > close * config.STOP_LOSS_PCT).to_numpy(),
     )
 
 
@@ -236,6 +240,7 @@ class SimParams:
     entry_rsi_max: float = config.ENTRY_RSI_MAX
     entry_adx_min: float = config.ENTRY_ADX_MIN
     require_uptrend: bool = config.REQUIRE_DAILY_UPTREND
+    require_atr_stop: bool = config.REQUIRE_ATR_STOP
     stock_entry_cutoff: Optional[dtime] = config.STOCK_ENTRY_CUTOFF
     # Crypto entry rule (mirrors src.scanner._crypto_entry_ok)
     crypto_min_vol_ratio: float = config.CRYPTO_MIN_VOL_RATIO
@@ -261,12 +266,13 @@ class SimParams:
 
     def label(self) -> str:
         regime = "regime ON" if self.require_uptrend else "regime OFF"
+        gate = "atr-gate ON" if self.require_atr_stop else "atr-gate OFF"
         co = self.stock_entry_cutoff.strftime("%H:%M") if self.stock_entry_cutoff else "EOD"
         return (f"rsi{self.entry_rsi_min:g}-{self.entry_rsi_max:g} "
                 f"adx>{self.entry_adx_min:g} cutoff={co} "
                 f"tp={self.take_profit_r_mult}R "
                 f"trig={self.trail_trigger_r}R dist={self.trail_distance_r}R "
-                f"[{regime}]")
+                f"[{regime}, {gate}]")
 
 
 @dataclass
@@ -426,6 +432,10 @@ def simulate(frames: dict[str, SignalData], params: SimParams) -> SimResult:
                 # Mirrors src.scanner._stock_entry_ok
                 if f.score[j] < 0:                      # indicator warmup
                     continue
+                if params.require_atr_stop and (
+                    f.atr_ok is None or not f.atr_ok[j]
+                ):
+                    continue
                 if not f.ema_aligned[j]:
                     continue
                 if f.adx[j] <= params.entry_adx_min:
@@ -517,6 +527,7 @@ def slice_frames(
             adx=f.adx[idx], above_vwap=f.above_vwap[idx],
             macd_pos=f.macd_pos[idx], ema_aligned=f.ema_aligned[idx],
             brk_ok=f.brk_ok[idx] if f.brk_ok is not None else None,
+            atr_ok=f.atr_ok[idx] if f.atr_ok is not None else None,
             signal=f.signal[idx] if f.signal is not None else None,
         )
     return out
