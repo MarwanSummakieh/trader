@@ -25,7 +25,7 @@ def _env(name: str, default: str) -> str:
 # Deploy stamp — bump when cutting a release (shown at bot startup, in the
 # dashboard header, and in /api/status) so "which code is running?" is
 # always answerable at a glance.
-VERSION = "2026-07-22"
+VERSION = "2026-08-20"
 
 # --- Capital & Risk ---
 # Defaults below are the backtest-validated set (2026-07-02, 59d of 5m bars,
@@ -45,6 +45,19 @@ VERSION = "2026-07-22"
 #   - RSI<35 dip-buy family: negative edge (-0.10R), matches crypto finding
 # Exit grid re-confirmed: tp=3R trig=1.5R dist=1.5R sits on a robust plateau
 # (neighbours within noise; tp 2-6R all positive).
+#
+# Re-validated 2026-08-20 (59d window ending 2026-08-19, train/holdout at
+# 2026-07-23 + walk-forward thirds). The momentum edge DECAYED across the
+# window (+0.15R -> +0.02R -> -0.15R per third); in the holdout month no
+# tested long rule earned a single take-profit or trail exit. Fresh
+# challenger families, all NEGATIVE on train — do not re-try without new
+# data: EMA21-pullback reclaim, VWAP reclaim, RSI-30 dip buy, lower-band
+# reclaim, opening-range breakout (retest), prior-day-high break, 8h-high
+# breakout (stock port of the crypto rule), BB-squeeze breakout, gap-and-go,
+# gap-fade, VWAP-hold, 3-bar momentum burst. Softening the stop floor to 1%
+# so quiet tape stays tradeable also loses (fees/slippage dominate small R).
+# What DID hold up is standing aside when volatility is too low for the R
+# geometry to work — see REQUIRE_ATR_STOP below.
 STARTING_CAPITAL = float(_env("STARTING_CAPITAL", "10000"))
 POSITION_SIZE_PCT = float(_env("POSITION_SIZE_PCT", "0.15"))
 STOP_LOSS_PCT = float(_env("STOP_LOSS_PCT", "0.02"))       # floor for the ATR stop
@@ -84,6 +97,22 @@ ENTRY_ADX_MIN = float(_env("ENTRY_ADX_MIN", "30"))
 # hours to play out before the 15:45 EOD liquidation.
 _cutoff = _env("STOCK_ENTRY_CUTOFF", "12:00").split(":")
 STOCK_ENTRY_CUTOFF = time(int(_cutoff[0]), int(_cutoff[1]))
+
+# Volatility regime gate (validated 2026-08-20): only enter a stock when the
+# ATR term actually sets the stop — 1.5*ATR(5m) > STOP_LOSS_PCT * price.
+# When intraday vol is below that, the stop is pinned at the 2% floor, "R"
+# stops being volatility-scaled, and the 3R target sits several days of
+# range away from a name that can't move 1% — those entries churned to EOD
+# scratches all July/August (live and backtest agree). Gate behaviour on the
+# 59d window: train +0.28R/126tr at the loosest useful setting through
+# +0.22R/35tr at this exact one (every threshold in between positive, so it
+# is a plateau, not a tuned point), and ZERO trades in the entire holdout
+# month — the intended behaviour: in tape where every tested rule lost, the
+# bot now stands aside. Expect (correct) multi-day flat stretches while
+# volatility is dead. Sample honesty: the gated subset alone is 35 trades,
+# CI [-0.20R, +0.65R] — treat this as preserving the validated edge's
+# operating conditions plus capital preservation, not as fresh proven alpha.
+REQUIRE_ATR_STOP = _env("REQUIRE_ATR_STOP", "1").lower() in ("1", "true", "yes")
 
 # The bot runs as per-asset-class instances (docker-compose starts one of
 # each): the stock instance keeps the defaults below, the crypto instance

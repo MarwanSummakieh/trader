@@ -53,6 +53,10 @@ class Analysis:
     # Crypto entry feature: last completed close above the prior
     # CRYPTO_BREAKOUT_BARS-bar high (False during warmup — fails closed).
     breakout_ok: bool = False
+    # Stock volatility gate: True when the ATR term (not the STOP_LOSS_PCT
+    # floor) sets the stop — i.e. intraday vol is high enough for the R
+    # geometry to work. False during ATR warmup — fails closed.
+    atr_binding: bool = False
 
     timestamp: datetime = field(default_factory=lambda: datetime.now(ET))
 
@@ -192,6 +196,15 @@ def analyze(
     stop_loss = price - max(atr_val * 1.5, price * config.STOP_LOSS_PCT)
     take_profit = price + (price - stop_loss) * config.TAKE_PROFIT_R_MULT
 
+    # ATR gate: computed from the RAW series, not atr_val — the NaN fallback
+    # above (price * 2%) would otherwise make warmup bars pass the gate.
+    atr_raw = intra["atr"].iloc[-1]
+    atr_binding = bool(
+        pd.notna(atr_raw) and float(atr_raw) * 1.5 > price * config.STOP_LOSS_PCT
+    )
+    if asset_type == "stock" and not atr_binding:
+        signals.append("Low ATR — stop pinned at floor (no-entry vol)")
+
     return Analysis(
         ticker=ticker, asset_type=asset_type, price=price,
         score=score, score_breakdown=breakdown, signals=signals,
@@ -203,6 +216,7 @@ def analyze(
         # entries when the daily trend is unknown is the safe direction.
         regime_ok=price > ema50_val,
         breakout_ok=breakout_ok,
+        atr_binding=atr_binding,
     )
 
 
