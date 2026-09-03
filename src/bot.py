@@ -2,11 +2,13 @@
 Main bot orchestration loop.
 - Scans the full universe every SCAN_INTERVAL_SECS
 - Monitors open positions every MONITOR_INTERVAL_SECS
-- Force-closes all stock positions at EOD_CLOSE_TIME
+- Force-closes all stock positions at EOD_CLOSE_TIME only when
+  EOD_CLOSE_STOCKS is on (off by default: stocks are held overnight)
 - Crypto scanning + position monitoring runs 24/7
 """
 
 import logging
+import math
 import time
 from datetime import datetime
 from typing import Optional
@@ -67,6 +69,13 @@ class TradingBot:
     def _past_eod(self) -> bool:
         return self._now().time() >= config.EOD_CLOSE_TIME
 
+    def eod_close_due(self) -> bool:
+        """True when the day-trading flatten should run now. Always False
+        with EOD_CLOSE_STOCKS off — positions are then held overnight and
+        exit only via stop / target / trail."""
+        return (config.EOD_CLOSE_STOCKS and self._market_open()
+                and self._past_eod() and not self._eod_closed_today)
+
     def _due(self, last: Optional[datetime], interval: int) -> bool:
         if last is None:
             return True
@@ -101,7 +110,13 @@ class TradingBot:
             self._last_monitor = self._now()
             return
         prices = get_current_prices([t.ticker for t in trades])
-        closed = self.portfolio.check_exits(prices)
+        # Swing rule-exit levels come from the latest scan (they only change
+        # once per session, so a scan from earlier today is current).
+        levels = {
+            a.ticker: a.swing_exit_level for a in self._last_analyses
+            if a.asset_type == "stock" and not math.isnan(a.swing_exit_level)
+        }
+        closed = self.portfolio.check_exits(prices, swing_levels=levels)
         for t in closed:
             _print_close(t)
         self._last_monitor = self._now()
@@ -274,8 +289,8 @@ class TradingBot:
                 if now.time() < config.MARKET_OPEN:
                     self._eod_closed_today = False
 
-                # EOD stock liquidation
-                if self._market_open() and self._past_eod() and not self._eod_closed_today:
+                # EOD stock liquidation (day-trading mode only)
+                if self.eod_close_due():
                     self.run_eod_close()
 
                 if self._due(self._last_scan, config.SCAN_INTERVAL_SECS):

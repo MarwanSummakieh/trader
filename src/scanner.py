@@ -5,6 +5,7 @@ then filters and ranks results.
 
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import replace
 from datetime import datetime
 from typing import Optional
 
@@ -70,11 +71,23 @@ def get_buy_candidates(
     - Daily ADX > ENTRY_ADX_MIN (trending, not chopping)
     - RSI in [ENTRY_RSI_MIN, ENTRY_RSI_MAX) — momentum, not blow-off
     - Regime: price above daily EMA50 (unless disabled)
-    - Volatility: the ATR term must set the stop, not the STOP_LOSS_PCT
-      floor (unless disabled) — quiet tape has no reachable 3R target and
+    - Volatility: 1.5*ATR must clear ATR_GATE_MULT of the STOP_LOSS_PCT
+      floor (unless disabled) — dead tape has no reachable 3R target and
       backtests negative however entered; the bot stands aside instead
-    - Entries before STOCK_ENTRY_CUTOFF ET only (edge needs hours of
-      runway before the 15:45 EOD liquidation)
+    - Entries before STOCK_ENTRY_CUTOFF ET only (afternoon entries tested
+      worse even with overnight holds)
+
+    Positions are held overnight (EOD_CLOSE_STOCKS off by default since
+    2026-09-03): exits are the stop / 3R target / trail only.
+
+    Stocks — swing (2026-09-03, daily bars 2024-09..2026-09 + 5m parity),
+    tried only for names that FAILED the momentum rule:
+    - Prior completed daily close: RSI(2) < SWING_RSI2_MAX and above the
+      200-day SMA (both fail closed on warmup)
+    - Entries before SWING_ENTRY_CUTOFF ET only (first ~30 min)
+    - Levels: SWING_STOP_PCT disaster stop, target 3R above; the working
+      exit is Portfolio.check_exits' rule (price above the 5-day SMA at
+      the session end) or SWING_MAX_HOLD_DAYS sessions
 
     Crypto — regime-gated 8h breakout (2026-07-22; see config.py for the
     research verdict — edge unproven, gates chosen for capital
@@ -94,12 +107,17 @@ def get_buy_candidates(
     btc = next((a for a in analyses if a.ticker == BTC_TICKER), None)
     btc_uptrend = bool(btc and btc.regime_ok)
 
-    candidates = [
-        a for a in analyses
-        if a.ticker not in existing_tickers
-        and (_crypto_entry_ok(a, btc_uptrend) if a.asset_type == "crypto"
-             else _stock_entry_ok(a, now))
-    ]
+    candidates: list[Analysis] = []
+    for a in analyses:
+        if a.ticker in existing_tickers:
+            continue
+        if a.asset_type == "crypto":
+            if _crypto_entry_ok(a, btc_uptrend):
+                candidates.append(a)
+        elif _stock_entry_ok(a, now):
+            candidates.append(a)
+        elif _swing_entry_ok(a, now):
+            candidates.append(_as_swing(a))
     if not config.EARNINGS_FILTER:
         return candidates
     # Earnings check last — it's a (cached) network call, so only survivors
@@ -118,6 +136,26 @@ def _stock_entry_ok(a: Analysis, now: datetime) -> bool:
         and (a.regime_ok or not config.REQUIRE_DAILY_UPTREND)
         and (a.atr_binding or not config.REQUIRE_ATR_STOP)
         and now.time() < config.STOCK_ENTRY_CUTOFF
+    )
+
+
+def _swing_entry_ok(a: Analysis, now: datetime) -> bool:
+    return (
+        config.SWING_ENABLED
+        and a.swing_ok
+        and now.time() < config.SWING_ENTRY_CUTOFF
+    )
+
+
+def _as_swing(a: Analysis) -> Analysis:
+    """Re-level a stock Analysis for the swing rule: wide disaster stop,
+    target 3R above (rarely reached — the rule exit does the work)."""
+    risk = a.price * config.SWING_STOP_PCT
+    return replace(
+        a, strategy="swing",
+        stop_loss=a.price - risk,
+        take_profit=a.price + risk * config.TAKE_PROFIT_R_MULT,
+        signals=["Swing: RSI(2) pullback entry"] + list(a.signals),
     )
 
 

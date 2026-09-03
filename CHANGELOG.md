@@ -1,5 +1,99 @@
 # Patch Notes
 
+## 2026-09-03 — Overnight holds, a looser volatility gate, and an RSI(2) swing entry
+
+### Changed
+
+- **The 15:45 EOD liquidation is off** (`EOD_CLOSE_STOCKS`, default 0):
+  stock positions are held overnight and exit only via stop / target /
+  trail. Alpaca bracket orders are now placed **GTC** so the stop and
+  target legs survive the session close (a DAY bracket would have left
+  overnight positions naked). Backtest (59d of 5m bars ending 09-02,
+  train/holdout at 08-06, gate off so there are enough trades to compare):
+  EOD on +0.02R over 202 trades (152 of them EOD scratches, holdout
+  −0.03R) → EOD off **+0.18R over 105 trades**, holdout +0.18R, take-profit
+  exits 10 → 26. Max drawdown 7.2% → 6.6%; the gap-risk cost that vetoed
+  this in August did not show up in this window (worst overnight gap fill
+  in the momentum book: about 1.5R). The 12:00 entry cutoff was re-tested
+  with overnight holds and kept (14:00 +0.08R, no cutoff −0.05R). The exit
+  set was **not** retuned: tp 3–6R / trigger 1.5–2R / distance 1.5–2R all
+  land at +0.15…+0.33R on ~90 trades — a plateau, not a signal.
+- **Volatility gate loosened to 0.7× the stop floor** (`ATR_GATE_MULT`):
+  enter when `1.5*ATR(5m) > 0.7 * STOP_LOSS_PCT * price`. With hours of
+  runway the original 1.0× rule made sense; with days it starves the bot —
+  it took **9 trades in 12 weeks** on this window. Sweep (EOD off, exits
+  unchanged): 1.0× 9tr +0.48R · 0.85× 28tr +0.69R · **0.7× 41tr +0.93R,
+  CI [+0.29, +1.55], DD −2.5%** · 0.5× 59tr +0.40R · off 105tr +0.18R.
+  Everything between 0.5× and 0.85× beats both endpoints, so 0.7× is a
+  plateau pick. Honesty: holdout samples at these settings are 2–5 trades
+  (the month was dead tape at every level).
+- `get_daily` now fetches 1 year of daily bars (the swing rule needs a
+  200-day SMA); the backtester fetches 2 years.
+
+### Added
+
+- **Swing entry family** (`SWING_*`, default on, stocks only): prior
+  completed daily close with RSI(2) < 5 and above the 200-day SMA, entered
+  in the first 30 minutes of the next session (`SWING_ENTRY_CUTOFF`,
+  10:00 ET), sized at 10% (`SWING_POSITION_SIZE_PCT`), 10% disaster stop
+  (`SWING_STOP_PCT`, target 3R above — rarely reached), and a **rule exit**:
+  in the last 15 minutes of any later session, close if the price is above
+  the mean of the prior 4 daily closes (today's close lifts the 5-day
+  SMA), or after 10 sessions (`SWING_MAX_HOLD_DAYS`). Tried only for names
+  that failed the momentum rule; momentum keeps priority.
+  - Daily-bar research (2024-09..2026-09, 8 slots, all costs): **344
+    trades, +0.12R (R = 10%), CI [+0.06, +0.18], win 68%, PF 1.80**, +70%
+    over two years at 15% sizing (+50%, max DD −10% at the adopted 10%);
+    positive in each year, in the holdout year (+0.14R) and — uniquely
+    among everything tested — in the Jun–Sep 2026 window (+0.18R, 56
+    trades, PF 2.2) where every momentum rule lost. Neighbours all
+    positive: RSI2 < 10 +0.08R (595 trades), < 15 +0.06R, exit on RSI2 > 70
+    +0.15R, 3×ATR stop +0.08R, ex-leveraged-ETFs +0.11R.
+  - 5m-engine parity on the 59d window (intraday fills, shared slots):
+    +0.12R over 51 trades, win 71%, PF 1.73 (train +0.19R, holdout −0.04R
+    with 7 positions still open at the window end). Combined with
+    momentum: +0.34R over 83 trades, PF 1.81, max DD −6.7%. An
+    intraday-checked exit (leave as soon as the price crosses the level)
+    tested slightly better (+0.13R, CI [+0.02, +0.24]) but is not adopted:
+    the close-based rule is the one validated on two years of daily data.
+- Ledger `strategy` column (`momentum` / `swing` / `crypto`; pre-existing
+  ledgers are migrated in place, old rows read as momentum), surfaced in
+  `/api/positions` and `/api/trades`; dashboard badges for `swing_exit`
+  and `time_exit`.
+- Backtest engine: `SimParams.eod_close_stocks`, `atr_ok` honours
+  `ATR_GATE_MULT`, swing features on every stock frame (`swing_rsi2`,
+  `swing_regime`, `swing_exit_level`, session/bar indices), swing entries
+  and rule/time exits in `simulate()`, per-strategy metrics. CLI flags
+  `--eod-close` and `--no-swing`.
+- Tests: EOD mode gating in the bot loop, overnight holds and gap-through
+  stops in the simulator, GTC brackets, gate-multiplier arithmetic, and
+  the whole swing path (ledger migration, scanner re-levelling and window,
+  portfolio rule/time exits incl. managed brokers, analyzer features from
+  completed days only, engine entries/exits).
+
+### Research (2026-09-03) — tested and REJECTED, do not re-try without new data
+
+- **Intraday entry families held overnight** (59d/5m, both the default
+  and a wider tp 6R / trig 2R exit set): prior-day-high breakout −0.19R
+  (holdout −0.44R); 10-day / 20-day-high breakouts −0.06R / −0.24R;
+  late-day momentum (enter 15:00–15:40 on a +0.5/1/2% day near the high)
+  −0.18…−0.41R; RSI 35 / 30 cross-ups −0.23R / −0.03R; day-open reclaim
+  0.00R (holdout −0.30R); gap-up continuation −0.36R; gap-down reclaim
+  −0.34R. Momentum variants: ADX > 20 / 25 −0.14R / −0.04R; dropping the
+  RSI floor +0.10R (worse than +0.18R); regime gate off +0.27R but max DD
+  −11% (kept on).
+- **Overnight-only "night effect"** (buy the last bar, sell the next open,
+  net 0.1%/side): negative on every subset — all names −0.04%/night,
+  regime-on −0.13%, above-SMA200 −0.16%, index ETFs −0.06%; only
+  leveraged ETFs were positive (+0.27% train, +0.07% holdout) — too thin
+  to trade.
+- **Daily-bar swing families** (2y): 52-week-high momentum (+0.45R over
+  2y, CI > 0 … and **−0.60R over the last 59 days**, PF 0.09 — exactly the
+  regime the bot is in); 20-day / 55-day Donchian breakouts +0.30R /
+  +0.21R with 30% win rates and CIs spanning zero; EMA20 pullback −0.06…
+  −0.11R; three-down-days-then-up +0.10R with a CI touching zero. RSI(2)
+  thresholds above 5 dilute the edge (see above).
+
 ## 2026-08-20 — Volatility regime gate for stock entries
 
 ### Added

@@ -58,7 +58,7 @@ def _cache_path(ticker: str, days: int) -> Path:
 def fetch_history(
     ticker: str, days: int, refresh: bool = False
 ) -> Optional[tuple[pd.DataFrame, pd.DataFrame]]:
-    """(intraday 5m, daily 1y) for one ticker, disk-cached per day."""
+    """(intraday 5m, daily 2y) for one ticker, disk-cached per day."""
     CACHE_DIR.mkdir(exist_ok=True)
     path = _cache_path(ticker, days)
     if path.exists() and not refresh:
@@ -74,7 +74,7 @@ def fetch_history(
             progress=False, auto_adjust=True, multi_level_index=False,
         )
         daily = yf.download(
-            ticker, period="1y", interval="1d",
+            ticker, period="2y", interval="1d",
             progress=False, auto_adjust=True, multi_level_index=False,
         )
         intra = _normalize(intra).dropna(subset=["Close", "Volume"])
@@ -132,7 +132,15 @@ class SignalData:
     macd_pos: np.ndarray = None    # bool: MACD histogram > 0
     ema_aligned: np.ndarray = None # bool: close > ema9 > ema21
     brk_ok: np.ndarray = None      # bool: close > prior CRYPTO_BREAKOUT_BARS high
-    atr_ok: np.ndarray = None      # bool: ATR term beats the stop floor (NaN → False)
+    atr_ok: np.ndarray = None      # bool: ATR term > ATR_GATE_MULT x stop floor (NaN → False)
+    # Swing (RSI2 pullback) features, stocks only. Daily values are from the
+    # last COMPLETED session (shifted one day), mapped onto every bar.
+    bar_idx: np.ndarray = None       # int: bar ordinal within its session
+    day_idx: np.ndarray = None       # int: session ordinal within the frame
+    is_last_bar: np.ndarray = None   # bool: last bar of its session
+    swing_rsi2: np.ndarray = None    # daily RSI(2) at the prior close (NaN = warmup)
+    swing_regime: np.ndarray = None  # bool: prior close > 200-day SMA (NaN → False)
+    swing_exit_level: np.ndarray = None  # mean of the prior 4 daily closes (NaN = warmup)
     # When set, this boolean mask REPLACES the score/rsi/vol/trend/regime
     # entry filters in simulate() (structural rules like EOD cutoff and
     # same-session checks still apply). Lets research scripts test arbitrary
@@ -210,6 +218,22 @@ def build_signal_frame(
         if float(daily["Volume"].tail(20).mean()) < config.MIN_AVG_DAILY_VOLUME:
             return None
 
+    # Swing features from completed daily bars (shift(1): a session only
+    # ever sees the previous close). NaN comparisons are False -> fail closed.
+    d_close = daily["Close"]
+    d_rsi2 = ind.rsi(d_close, 2).shift(1)
+    d_reg = (d_close > d_close.rolling(200).mean()).shift(1)
+    d_lvl = (d_close.rolling(4).mean()).shift(1)
+    rsi2_col = dates.map(dict(zip(d_dates, d_rsi2.values))).ffill().to_numpy(float)
+    reg_col = dates.map(dict(zip(d_dates, d_reg.values))).ffill()
+    reg_col = np.where(reg_col.isna().to_numpy(), False, reg_col.to_numpy()).astype(bool)
+    lvl_col = dates.map(dict(zip(d_dates, d_lvl.values))).ffill().to_numpy(float)
+    date_arr = dates.to_numpy()
+    new_day = np.r_[True, date_arr[1:] != date_arr[:-1]]
+    day_idx = np.cumsum(new_day) - 1
+    bar_idx = np.arange(len(date_arr)) - np.maximum.accumulate(np.where(new_day, np.arange(len(date_arr)), 0))
+    is_last = np.r_[new_day[1:], True]
+
     ts_list = list(idx_et)
     return SignalData(
         ticker=ticker, asset_type=asset_type,
@@ -227,7 +251,9 @@ def build_signal_frame(
         brk_ok=(close > high.rolling(config.CRYPTO_BREAKOUT_BARS).max().shift(1)).to_numpy(),
         # Raw ATR series, NOT atr_v — its warmup fallback (2% of price)
         # would wrongly pass the gate. NaN comparison is False (fail closed).
-        atr_ok=(atr * 1.5 > close * config.STOP_LOSS_PCT).to_numpy(),
+        atr_ok=(atr * 1.5 > close * config.STOP_LOSS_PCT * config.ATR_GATE_MULT).to_numpy(),
+        bar_idx=bar_idx, day_idx=day_idx, is_last_bar=is_last,
+        swing_rsi2=rsi2_col, swing_regime=reg_col, swing_exit_level=lvl_col,
     )
 
 
@@ -242,6 +268,17 @@ class SimParams:
     require_uptrend: bool = config.REQUIRE_DAILY_UPTREND
     require_atr_stop: bool = config.REQUIRE_ATR_STOP
     stock_entry_cutoff: Optional[dtime] = config.STOCK_ENTRY_CUTOFF
+    # Force-flat stocks at EOD_CLOSE_TIME (day-trading mode). Off = positions
+    # are held overnight and exit only on stop / target / trail.
+    eod_close_stocks: bool = config.EOD_CLOSE_STOCKS
+    # Stock swing entry (mirrors src.scanner._swing_entry_ok / portfolio)
+    swing_enabled: bool = config.SWING_ENABLED
+    swing_rsi2_max: float = config.SWING_RSI2_MAX
+    swing_stop_pct: float = config.SWING_STOP_PCT
+    swing_max_hold_days: int = config.SWING_MAX_HOLD_DAYS
+    swing_entry_bars: int = config.SWING_ENTRY_BARS
+    swing_position_size_pct: float = config.SWING_POSITION_SIZE_PCT
+    swing_exit_mode: str = "eod"     # "eod": rule checked at the 15:50 close; "intraday": every bar
     # Crypto entry rule (mirrors src.scanner._crypto_entry_ok)
     crypto_min_vol_ratio: float = config.CRYPTO_MIN_VOL_RATIO
     crypto_require_btc_uptrend: bool = config.CRYPTO_REQUIRE_BTC_UPTREND
@@ -267,12 +304,14 @@ class SimParams:
     def label(self) -> str:
         regime = "regime ON" if self.require_uptrend else "regime OFF"
         gate = "atr-gate ON" if self.require_atr_stop else "atr-gate OFF"
-        co = self.stock_entry_cutoff.strftime("%H:%M") if self.stock_entry_cutoff else "EOD"
+        eod = "eod-flat ON" if self.eod_close_stocks else "eod-flat OFF"
+        swing = f"swing rsi2<{self.swing_rsi2_max:g}" if self.swing_enabled else "swing OFF"
+        co = self.stock_entry_cutoff.strftime("%H:%M") if self.stock_entry_cutoff else "none"
         return (f"rsi{self.entry_rsi_min:g}-{self.entry_rsi_max:g} "
                 f"adx>{self.entry_adx_min:g} cutoff={co} "
                 f"tp={self.take_profit_r_mult}R "
                 f"trig={self.trail_trigger_r}R dist={self.trail_distance_r}R "
-                f"[{regime}, {gate}]")
+                f"[{regime}, {gate}, {eod}, {swing}]")
 
 
 @dataclass
@@ -286,6 +325,7 @@ class BTTrade:
     stop: float
     tp: float
     r: float                      # initial risk per share
+    strategy: str = "momentum"    # "momentum" | "swing" | "crypto"
     entry_i: int = -1             # row index of the entry bar in its frame
     margin: float = 0.0           # cash committed (== exposure at leverage 1)
     last_close: float = 0.0
@@ -366,9 +406,25 @@ def simulate(frames: dict[str, SignalData], params: SimParams) -> SimResult:
             o, h, l, c = f.open[i], f.high[i], f.low[i], f.close[i]
             pos.last_close = c
 
-            if pos.asset_type == "stock" and t_time >= EOD_T:
+            if (params.eod_close_stocks and pos.asset_type == "stock"
+                    and t_time >= EOD_T):
                 close(pos, ts, o, "eod_close")
                 continue
+            if pos.strategy == "swing":
+                # Rule exits decided on the previous bar's close, filled at
+                # this bar's open (a market order). Sessions after entry only.
+                held = f.day_idx[i] - f.day_idx[pos.entry_i]
+                if held >= 1:
+                    k = i - 1
+                    lvl = f.swing_exit_level[k]
+                    above = (not math.isnan(lvl)) and f.close[k] > lvl
+                    check = f.is_last_bar[i] if params.swing_exit_mode == "eod" else True
+                    if check and above and f.day_idx[k] == f.day_idx[i]:
+                        close(pos, ts, o, "swing_exit")
+                        continue
+                    if held >= params.swing_max_hold_days and f.is_last_bar[i]:
+                        close(pos, ts, o, "time_exit")
+                        continue
             # Broker liquidation level: loss = margin_call_loss * margin.
             # Sits far below the stop at low leverage; above it when levered
             # enough that the margin runs out before the stop is reached.
@@ -404,7 +460,7 @@ def simulate(frames: dict[str, SignalData], params: SimParams) -> SimResult:
                     pos.stop = new_stop
 
         # ── Entries (signal from the previous completed bar) ──────────────
-        candidates: list[tuple[int, str, int]] = []  # (score, ticker, row)
+        candidates: list[tuple[int, str, int, str]] = []  # (score, ticker, row, strategy)
         for tk in tickers:
             if tk in open_pos:
                 continue
@@ -413,6 +469,7 @@ def simulate(frames: dict[str, SignalData], params: SimParams) -> SimResult:
             if i is None or i == 0:
                 continue
             j = i - 1  # signal bar
+            strat = "momentum" if f.asset_type == "stock" else "crypto"
             if f.signal is not None:
                 if not f.signal[j]:
                     continue
@@ -429,42 +486,44 @@ def simulate(frames: dict[str, SignalData], params: SimParams) -> SimResult:
                 if params.crypto_require_btc_uptrend and not btc_ok(f.ts[j]):
                     continue
             else:
-                # Mirrors src.scanner._stock_entry_ok
-                if f.score[j] < 0:                      # indicator warmup
-                    continue
-                if params.require_atr_stop and (
-                    f.atr_ok is None or not f.atr_ok[j]
-                ):
-                    continue
-                if not f.ema_aligned[j]:
-                    continue
-                if f.adx[j] <= params.entry_adx_min:
-                    continue
-                if not (params.entry_rsi_min <= f.rsi[j] < params.entry_rsi_max):
-                    continue
-                if params.require_uptrend and not f.regime_ok[j]:
+                # Mirrors src.scanner.get_buy_candidates: the momentum rule
+                # first, then the swing rule for names that failed it.
+                if _momentum_signal(f, j, params):
+                    pass
+                elif _swing_signal(f, j, params):
+                    strat = "swing"
+                else:
                     continue
             if f.asset_type == "stock":
-                cutoff = params.stock_entry_cutoff or EOD_T
-                if t_time >= cutoff:         # no late entries
+                # No late entries. With EOD liquidation on, nothing may open
+                # at/after the flatten time; with it off the only cutoff is
+                # the configured one (None = any bar of the session). Swing
+                # entries have their own (morning) window instead.
+                cutoff = params.stock_entry_cutoff
+                if cutoff is None and params.eod_close_stocks:
+                    cutoff = EOD_T
+                if strat != "swing" and cutoff is not None and t_time >= cutoff:
                     continue
                 if f.date[j] != f.date[i]:   # signal must be same session
                     continue
-            candidates.append((int(f.score[j]), tk, i))
+            candidates.append((int(f.score[j]), tk, i, strat))
 
         candidates.sort(reverse=True)
-        for sc, tk, i in candidates:
+        for sc, tk, i, strat in candidates:
             if len(open_pos) >= params.max_positions:
                 break
-            size = capital * params.position_size_pct
+            size = capital * (params.swing_position_size_pct if strat == "swing"
+                              else params.position_size_pct)
             avail = capital - deployed()
             if avail < size * 0.5:
                 break
             f = frames[tk]
             j = i - 1
             entry_fill = f.open[i] * (1 + fee)
-            stop = f.close[j] - f.stop_dist[j]         # anchored to signal bar
-            tp = f.close[j] + f.stop_dist[j] * params.take_profit_r_mult
+            dist = (f.close[j] * params.swing_stop_pct if strat == "swing"
+                    else f.stop_dist[j])
+            stop = f.close[j] - dist                   # anchored to signal bar
+            tp = f.close[j] + dist * params.take_profit_r_mult
             if entry_fill <= stop:                     # gapped through the stop
                 continue
             margin = min(size, avail * 0.95)
@@ -473,7 +532,7 @@ def simulate(frames: dict[str, SignalData], params: SimParams) -> SimResult:
             open_pos[tk] = BTTrade(
                 ticker=tk, asset_type=f.asset_type, score=sc, entry_ts=ts,
                 entry_px=entry_fill, qty=qty, stop=stop, tp=tp, r=r,
-                entry_i=i, margin=margin, last_close=f.close[i],
+                strategy=strat, entry_i=i, margin=margin, last_close=f.close[i],
             )
 
         eq_ts.append(ts)
@@ -497,6 +556,35 @@ def simulate(frames: dict[str, SignalData], params: SimParams) -> SimResult:
 
     return SimResult(params=params, trades=closed,
                      equity=pd.Series(eq_val, index=pd.DatetimeIndex(eq_ts)))
+
+
+def _momentum_signal(f: SignalData, j: int, params: SimParams) -> bool:
+    """Mirrors src.scanner._stock_entry_ok (minus the time-of-day cutoff)."""
+    if f.score[j] < 0:                                  # indicator warmup
+        return False
+    if params.require_atr_stop and (f.atr_ok is None or not f.atr_ok[j]):
+        return False
+    if not f.ema_aligned[j]:
+        return False
+    if f.adx[j] <= params.entry_adx_min:
+        return False
+    if not (params.entry_rsi_min <= f.rsi[j] < params.entry_rsi_max):
+        return False
+    if params.require_uptrend and not f.regime_ok[j]:
+        return False
+    return True
+
+
+def _swing_signal(f: SignalData, j: int, params: SimParams) -> bool:
+    """Mirrors src.scanner._swing_entry_ok: prior-close RSI(2) below the
+    threshold in a 200-day uptrend, acted on within the first
+    swing_entry_bars bars of the session. NaN warmup fails closed."""
+    if not params.swing_enabled or f.swing_rsi2 is None:
+        return False
+    if f.score[j] < 0 or f.bar_idx[j] >= params.swing_entry_bars:
+        return False
+    v = f.swing_rsi2[j]
+    return (not math.isnan(v)) and v < params.swing_rsi2_max and bool(f.swing_regime[j])
 
 
 def slice_frames(
@@ -529,6 +617,9 @@ def slice_frames(
             brk_ok=f.brk_ok[idx] if f.brk_ok is not None else None,
             atr_ok=f.atr_ok[idx] if f.atr_ok is not None else None,
             signal=f.signal[idx] if f.signal is not None else None,
+            **{k: (getattr(f, k)[idx] if getattr(f, k) is not None else None)
+               for k in ("bar_idx", "day_idx", "is_last_bar", "swing_rsi2",
+                         "swing_regime", "swing_exit_level")},
         )
     return out
 
@@ -553,7 +644,17 @@ def compute_metrics(res: SimResult) -> dict:
         reasons[t.reason] = reasons.get(t.reason, 0) + 1
 
     total = sum(pnls)
+    by_strat: dict[str, dict] = {}
+    for s in sorted({t.strategy for t in trades}):
+        ts_ = [t for t in trades if t.strategy == s]
+        by_strat[s] = {
+            "trades": len(ts_),
+            "avg_r": float(np.mean([t.r_multiple for t in ts_])),
+            "total_pnl": sum(t.pnl for t in ts_),
+            "win_rate": sum(1 for t in ts_ if t.pnl > 0) / len(ts_) * 100,
+        }
     return {
+        "by_strategy": by_strat,
         "trades": len(trades),
         "win_rate": len(wins) / len(pnls) * 100 if pnls else 0.0,
         "total_pnl": total,
