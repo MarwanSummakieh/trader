@@ -29,15 +29,26 @@ rule:
 - no entries after 12:00 ET, no entries on earnings reaction days
 
 Exits are ATR-anchored stops with a 3R take-profit and an R-based trailing
-stop, all resting **server-side at the broker** as a bracket order — so
-stops fire even if the bot process dies. All stock positions are force-flat
-at 15:45 ET; nothing is held overnight.
+stop, all resting **server-side at the broker** as a GTC bracket order — so
+stops fire even if the bot process dies. Since 2026-09-03 stock positions
+are **held overnight** until the stop, target or trail fires (the old
+15:45 flatten is available via `EOD_CLOSE_STOCKS=1`): with days of runway
+the 3R target is actually reachable, which turned the July–August churn of
+end-of-day scratches back into a positive expectancy in backtests.
+
+A second stock entry family runs alongside momentum: a **swing pullback**
+(Connors RSI(2) < 5 on the prior daily close, above the 200-day SMA),
+entered in the first 30 minutes, held until the price is back above its
+5-day average at the session end (or 10 sessions), with a 10% disaster
+stop and 10% sizing. On two years of daily bars it earned ~+0.12R per
+trade (R = 10%) with a 68% win rate, and it was the only tested rule still
+positive in the dead-volatility summer of 2026.
 
 Costs are modeled honestly: per-side spread/slippage plus Alpaca's sell-side
-regulatory fees (SEC + FINRA TAF — Alpaca charges no commission). The rule
-set was validated on a train/holdout split with walk-forward checks
-(~+0.14R/trade net of all costs); the full research notes live in
-[config.py](config.py) and [CHANGELOG.md](CHANGELOG.md).
+regulatory fees (SEC + FINRA TAF — Alpaca charges no commission). Every rule
+was validated on train/holdout splits with walk-forward checks, net of
+all costs; the full research notes (including everything that was tested
+and rejected) live in [config.py](config.py) and [CHANGELOG.md](CHANGELOG.md).
 
 The bot runs as **one instance per asset class**, each with its own ledger
 and capital: the stock instance ($10k, Alpaca bracket orders, session hours)

@@ -25,7 +25,7 @@ def _env(name: str, default: str) -> str:
 # Deploy stamp — bump when cutting a release (shown at bot startup, in the
 # dashboard header, and in /api/status) so "which code is running?" is
 # always answerable at a glance.
-VERSION = "2026-08-20"
+VERSION = "2026-09-03"
 
 # --- Capital & Risk ---
 # Defaults below are the backtest-validated set (2026-07-02, 59d of 5m bars,
@@ -58,6 +58,18 @@ VERSION = "2026-08-20"
 # so quiet tape stays tradeable also loses (fees/slippage dominate small R).
 # What DID hold up is standing aside when volatility is too low for the R
 # geometry to work — see REQUIRE_ATR_STOP below.
+#
+# Re-validated 2026-09-03 (59d window 06-11..09-02, train/holdout at 08-06)
+# with the 15:45 liquidation REMOVED (EOD_CLOSE_STOCKS off, positions held
+# overnight, GTC bracket legs). With the ATR gate off, the momentum rule
+# goes from +0.02R (EOD on, 202 trades, 152 of them EOD scratches) to
+# +0.18R (EOD off, 105 trades, take-profits 10 -> 26), positive on train
+# AND holdout. The 12:00 cutoff still wins (14:00 +0.08R, none -0.05R);
+# the exit set was NOT retuned (tp 3-6R / trig 1.5-2R / dist 1.5-2R are all
+# +0.15..+0.33R with overnight holds — a plateau, ~90 trades). Loosening the
+# gate to 0.7x of the floor is the actual gain — see ATR_GATE_MULT. New
+# intraday entry families held overnight all lost (see CHANGELOG); the one
+# new family that validated is the daily RSI(2) swing rule — see SWING_*.
 STARTING_CAPITAL = float(_env("STARTING_CAPITAL", "10000"))
 POSITION_SIZE_PCT = float(_env("POSITION_SIZE_PCT", "0.15"))
 STOP_LOSS_PCT = float(_env("STOP_LOSS_PCT", "0.02"))       # floor for the ATR stop
@@ -93,8 +105,9 @@ MARGIN_CALL_LOSS = float(_env("MARGIN_CALL_LOSS", "0.9"))
 ENTRY_RSI_MIN = float(_env("ENTRY_RSI_MIN", "55"))
 ENTRY_RSI_MAX = float(_env("ENTRY_RSI_MAX", "70"))
 ENTRY_ADX_MIN = float(_env("ENTRY_ADX_MIN", "30"))
-# No stock entries at/after this ET time — the intraday drift edge needs
-# hours to play out before the 15:45 EOD liquidation.
+# No momentum stock entries at/after this ET time. Originally: runway before
+# the 15:45 flatten; re-tested 2026-09-03 with overnight holds and still
+# right — 14:00 / 15:30 / no cutoff all degrade expectancy.
 _cutoff = _env("STOCK_ENTRY_CUTOFF", "12:00").split(":")
 STOCK_ENTRY_CUTOFF = time(int(_cutoff[0]), int(_cutoff[1]))
 
@@ -113,6 +126,48 @@ STOCK_ENTRY_CUTOFF = time(int(_cutoff[0]), int(_cutoff[1]))
 # CI [-0.20R, +0.65R] — treat this as preserving the validated edge's
 # operating conditions plus capital preservation, not as fresh proven alpha.
 REQUIRE_ATR_STOP = _env("REQUIRE_ATR_STOP", "1").lower() in ("1", "true", "yes")
+# Gate threshold as a fraction of the stop floor: enter when
+# 1.5*ATR(5m) > ATR_GATE_MULT * STOP_LOSS_PCT * price. 1.0 = the original
+# "ATR must set the stop" rule. Loosened to 0.7 on 2026-09-03 together with
+# overnight holds (EOD_CLOSE_STOCKS off): with days instead of hours of
+# runway, moderately quiet names reach the 3R target too. On the 59d window
+# ending 2026-09-02 (train/holdout at 08-06, exits unchanged): 1.0x took 9
+# trades in 12 weeks (+0.48R); 0.85x 28tr +0.69R; 0.7x 41tr +0.93R, CI
+# [+0.29, +1.55], max DD -2.5%; 0.5x 59tr +0.40R; no gate 105tr +0.18R.
+# Every setting from 0.5x to 0.85x beats both the ungated rule and the old
+# 1.0x, so 0.7x is a plateau pick, not a tuned point. Holdout samples at
+# these settings are 2-5 trades — the month was dead tape at every level.
+ATR_GATE_MULT = float(_env("ATR_GATE_MULT", "0.7"))
+
+# --- Stock swing entry: RSI(2) pullback in a daily uptrend (2026-09-03) ---
+# Second, independent stock entry family, held for days (needs
+# EOD_CLOSE_STOCKS off). Signal on the last COMPLETED daily bar: RSI(2) of
+# daily closes < SWING_RSI2_MAX and close > 200-day SMA. Entry in the first
+# SWING_ENTRY_BARS 5m bars of the next session; exit when the price is above
+# the 5-day SMA (the prior 4 closes averaged with the live price) at the
+# session end, or after SWING_MAX_HOLD_DAYS sessions, with a wide
+# SWING_STOP_PCT disaster stop (the bracket target sits 3R above, i.e.
+# +30% — it is the trail/stop legs that matter here).
+# Research (daily bars, 2024-09..2026-09, 8 slots x 15%, all costs):
+#   RSI2<5:  344 trades, +0.12R (R = 10%), CI [+0.06, +0.18], win 68%,
+#            PF 1.80, +70% over 2y, max DD -13%; positive in each year, in
+#            the holdout year (+0.14R) AND in the Jun-Sep 2026 dead-tape
+#            window (+0.18R, 56 trades) where every momentum rule lost.
+#   Neighbours all positive: RSI2<10 +0.08R (595tr), <15 +0.06R, exit on
+#   RSI2>70 +0.15R, 3*ATR stop +0.08R, ex-leveraged-ETFs +0.11R.
+# Alternatives tested and REJECTED on the same data: 52w-high momentum
+# (+0.45R over 2y but -0.60R in the last 59 days), 20/55-day Donchian
+# breakouts (wide CIs, 30% win), EMA20 pullback (negative), 3-down-days
+# (marginal). Full record in CHANGELOG 2026-09-03.
+SWING_ENABLED = _env("SWING_ENABLED", "1").lower() in ("1", "true", "yes")
+SWING_RSI2_MAX = float(_env("SWING_RSI2_MAX", "5"))
+SWING_STOP_PCT = float(_env("SWING_STOP_PCT", "0.10"))
+SWING_MAX_HOLD_DAYS = int(_env("SWING_MAX_HOLD_DAYS", "10"))
+# Swing positions are sized smaller than momentum ones: the 10% stop means a
+# full-size (15%) loser costs 1.5% of capital, 3-5x a momentum stop-out, and
+# pullback entries cluster on market-wide down days.
+SWING_POSITION_SIZE_PCT = float(_env("SWING_POSITION_SIZE_PCT", "0.10"))
+SWING_ENTRY_BARS = int(_env("SWING_ENTRY_BARS", "6"))      # 6 x 5m = until 10:00 ET
 
 # The bot runs as per-asset-class instances (docker-compose starts one of
 # each): the stock instance keeps the defaults below, the crypto instance
@@ -181,7 +236,22 @@ MAX_DATA_AGE_MINUTES = 15          # reject stock signals from stale bars (holid
 # --- Market Hours (US Eastern Time) ---
 MARKET_OPEN = time(9, 30)
 MARKET_CLOSE = time(16, 0)
+# Last stock scan of the session happens before this time; it is also the
+# force-flat time when EOD_CLOSE_STOCKS is on.
 EOD_CLOSE_TIME = time(15, 45)
+# Day-trading mode: liquidate every open stock at EOD_CLOSE_TIME. Off by
+# default (2026-09-03): positions are held overnight and exit only via
+# stop / target / trail, so the 3R target has days of runway instead of
+# hours. Bracket legs at Alpaca are placed GTC so overnight positions stay
+# protected. Turning it back on restores the pre-2026-09 behaviour.
+EOD_CLOSE_STOCKS = _env("EOD_CLOSE_STOCKS", "0").lower() in ("1", "true", "yes")
+# Swing entries are taken in the first SWING_ENTRY_BARS 5m bars of the
+# session (the daily signal is from the prior close; waiting later than
+# ~10:00 gives away the open-to-bounce move).
+SWING_ENTRY_CUTOFF = time(
+    MARKET_OPEN.hour + (MARKET_OPEN.minute + 5 * SWING_ENTRY_BARS) // 60,
+    (MARKET_OPEN.minute + 5 * SWING_ENTRY_BARS) % 60,
+)
 
 # --- Loop Timing ---
 SCAN_INTERVAL_SECS = 300

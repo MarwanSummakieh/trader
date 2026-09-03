@@ -4,7 +4,11 @@ handle end-of-day stock liquidation.
 """
 
 import logging
+from datetime import datetime
 from typing import Optional
+
+import numpy as np
+import pytz
 
 from .analyzer import Analysis
 from .broker import Broker, SimBroker
@@ -13,6 +17,7 @@ from .ledger import Ledger, Trade
 import config
 
 logger = logging.getLogger(__name__)
+ET = pytz.timezone("America/New_York")
 
 
 class Portfolio:
@@ -86,8 +91,10 @@ class Portfolio:
         # Size against the expected fill (signal price + slippage); the
         # broker reports the actual fill price/qty it achieved.
         expected_fill = analysis.entry * (1 + config.FEE_SLIPPAGE_PCT)
+        size_pct = (config.SWING_POSITION_SIZE_PCT if analysis.strategy == "swing"
+                    else config.POSITION_SIZE_PCT)
         margin = min(
-            self.capital * config.POSITION_SIZE_PCT,
+            self.capital * size_pct,
             self.available_capital * 0.95,
         )
 
@@ -121,11 +128,12 @@ class Portfolio:
             stop_loss=analysis.stop_loss,
             take_profit=analysis.take_profit,
             signals=analysis.signals,
+            strategy=analysis.strategy,
         )
         logger.info(
-            "OPEN  %-8s @ $%8.2f  SL $%8.2f  TP $%8.2f  qty %.3f  [%s]",
+            "OPEN  %-8s @ $%8.2f  SL $%8.2f  TP $%8.2f  qty %.3f  [%s, %s]",
             analysis.ticker, fill.price, analysis.stop_loss,
-            analysis.take_profit, fill.qty, self.broker.name,
+            analysis.take_profit, fill.qty, self.broker.name, analysis.strategy,
         )
         return trade
 
@@ -144,9 +152,44 @@ class Portfolio:
         net_price = gross_price - (reg_fee / trade.quantity if trade.quantity else 0.0)
         return self.ledger.close_trade(trade.id, net_price, reason)
 
-    def check_exits(self, current_prices: dict[str, float]) -> list[Trade]:
+    def _swing_exit_reason(
+        self, trade: Trade, price: float,
+        swing_levels: Optional[dict[str, float]], now: Optional[datetime],
+    ) -> Optional[str]:
+        """Rule exits for swing trades, evaluated in the last 15 minutes of
+        a session (EOD_CLOSE_TIME..MARKET_CLOSE) on sessions AFTER entry:
+        - "swing_exit": price above the mean of the prior 4 daily closes,
+          i.e. today's close lifts the 5-day SMA (the Connors exit)
+        - "time_exit": SWING_MAX_HOLD_DAYS sessions elapsed
+        Unknown level (no scan yet this session) -> no rule exit; the
+        stop / target legs still protect the position."""
+        now = now or datetime.now(ET)
+        if now.weekday() >= 5:
+            return None
+        if not (config.EOD_CLOSE_TIME <= now.time() <= config.MARKET_CLOSE):
+            return None
+        entry_day = datetime.fromisoformat(trade.entry_time).date()
+        held = int(np.busday_count(entry_day, now.date()))   # sessions since entry
+        if held < 1:
+            return None
+        level = (swing_levels or {}).get(trade.ticker)
+        if level is not None and price > level:
+            return "swing_exit"
+        if held >= config.SWING_MAX_HOLD_DAYS:
+            return "time_exit"
+        return None
+
+    def check_exits(
+        self, current_prices: dict[str, float],
+        swing_levels: Optional[dict[str, float]] = None,
+        now: Optional[datetime] = None,
+    ) -> list[Trade]:
         """
         Close positions that hit stop-loss or take-profit.
+
+        Swing trades additionally exit by rule (see _swing_exit_reason);
+        `swing_levels` maps ticker -> mean of the prior 4 daily closes,
+        supplied by the bot from its latest scan.
         R-based trailing: once gain >= PROFIT_TRAIL_TRIGGER_R * R, the stop
         trails PROFIT_TRAIL_DISTANCE_R * R below the observed price.
         The stop only ever moves up — it never retracts.
@@ -227,6 +270,22 @@ class Portfolio:
                         )
                         # Refresh so the stop-loss check below sees the new value
                         trade = self.ledger.get_trade(trade.id)  # type: ignore[assignment]
+
+            # ── Swing rule / time exits (bot-initiated, any broker) ───────
+            if trade.strategy == "swing":
+                reason = self._swing_exit_reason(trade, price, swing_levels, now)
+                if reason is not None:
+                    fill = exec_broker.close(trade.ticker, price, reason)
+                    if fill is not None:
+                        closed_trade = self._record_close(trade, fill.price, reason)
+                        logger.info(
+                            "CLOSE %-8s @ $%8.2f  PnL $%+.2f (%+.1f%%)  [%s @ %s]",
+                            trade.ticker, fill.price, closed_trade.pnl or 0,
+                            closed_trade.pnl_pct or 0, reason, exec_broker.name,
+                        )
+                        closed.append(closed_trade)
+                        self._orphan_strikes.pop(trade.ticker, None)
+                    continue   # a failed close is retried next cycle
 
             if exec_broker.manages_exits:
                 continue   # stop/target execution lives at the broker

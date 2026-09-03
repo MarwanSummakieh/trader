@@ -103,6 +103,7 @@ def make_api(ledger: Ledger, portfolio: Portfolio, starting_capital: float,
                     (prices.get(t.ticker, t.entry_price) - t.entry_price) / t.entry_price * 100, 2
                 ),
                 "entry_time": t.entry_time[11:16] if t.entry_time else "—",
+                "strategy": t.strategy,
             }
             for t in trades
         ]
@@ -122,6 +123,7 @@ def make_api(ledger: Ledger, portfolio: Portfolio, starting_capital: float,
                 "pnl": round(t.pnl, 2) if t.pnl is not None else None,
                 "pnl_pct": round(t.pnl_pct, 2) if t.pnl_pct is not None else None,
                 "exit_reason": t.exit_reason,
+                "strategy": t.strategy,
                 "entry_time": t.entry_time[5:16].replace("T", " ") if t.entry_time else "—",
                 "exit_time": t.exit_time[5:16].replace("T", " ") if t.exit_time else "—",
             }

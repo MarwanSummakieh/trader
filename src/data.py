@@ -40,10 +40,11 @@ def get_intraday(ticker: str, interval: str = "5m") -> Optional[pd.DataFrame]:
 
 
 def get_daily(ticker: str) -> Optional[pd.DataFrame]:
-    """90-day daily OHLCV for trend context."""
+    """1-year daily OHLCV: trend context (EMA50 / ADX) plus the swing
+    rule's 200-day SMA and RSI(2), which need >= 200 completed sessions."""
     try:
         df = yf.download(
-            ticker, period="90d", interval="1d",
+            ticker, period="1y", interval="1d",
             progress=False, auto_adjust=True, multi_level_index=False,
         )
         df = _normalize(df).dropna(subset=["Close", "Volume"])

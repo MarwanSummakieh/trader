@@ -33,6 +33,7 @@ class Trade:
     pnl: Optional[float] = None
     pnl_pct: Optional[float] = None
     exit_reason: Optional[str] = None
+    strategy: str = "momentum"   # "momentum" | "swing" | "crypto"
 
     @property
     def is_open(self) -> bool:
@@ -73,9 +74,17 @@ class Ledger:
                 pnl         REAL,
                 pnl_pct     REAL,
                 exit_reason TEXT,
-                signals     TEXT
+                signals     TEXT,
+                strategy    TEXT    NOT NULL DEFAULT 'momentum'
             )
         """)
+        # Ledgers created before 2026-09-03 lack the strategy column; every
+        # pre-existing row was a momentum (or crypto-rule) trade.
+        cols = {r[1] for r in self._conn.execute("PRAGMA table_info(trades)")}
+        if "strategy" not in cols:
+            self._conn.execute(
+                "ALTER TABLE trades ADD COLUMN strategy TEXT NOT NULL DEFAULT 'momentum'"
+            )
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS scan_results (
                 id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,16 +114,17 @@ class Ledger:
         stop_loss: float,
         take_profit: float,
         signals: list[str],
+        strategy: str = "momentum",
     ) -> Trade:
         now = datetime.now(ET).isoformat()
         with self._lock:
             cur = self._conn.execute(
                 """INSERT INTO trades
                    (ticker, asset_type, entry_time, entry_price, quantity,
-                    stop_loss, take_profit, signals)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    stop_loss, take_profit, signals, strategy)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (ticker, asset_type, now, entry_price, quantity,
-                 stop_loss, take_profit, json.dumps(signals)),
+                 stop_loss, take_profit, json.dumps(signals), strategy),
             )
             self._conn.commit()
             return self.get_trade(cur.lastrowid)  # type: ignore[arg-type]
@@ -259,4 +269,5 @@ def _row(r: sqlite3.Row) -> Trade:
         pnl_pct=r["pnl_pct"],
         exit_reason=r["exit_reason"],
         signals=r["signals"],
+        strategy=r["strategy"] or "momentum",
     )

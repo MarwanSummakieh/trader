@@ -45,12 +45,13 @@ def make_frame(bars, day=1, signal_at=(0,), stop_dist=5.0, ticker="TEST"):
 
 
 PARAMS = SimParams(fee_slippage_pct=0.0, starting_capital=10_000.0,
-                   position_size_pct=0.15,
+                   position_size_pct=0.15, eod_close_stocks=False,
                    sec_fee_rate=0.0, finra_taf_per_share=0.0, finra_taf_cap=0.0)
+EOD_PARAMS = SimParams(**{**PARAMS.__dict__, "eod_close_stocks": True})
 
 
-def run(frame):
-    return simulate({frame.ticker: frame}, PARAMS)
+def run(frame, params=PARAMS):
+    return simulate({frame.ticker: frame}, params)
 
 
 def test_entry_fills_at_next_bar_open():
@@ -127,17 +128,78 @@ def test_signal_must_be_same_session():
     assert res.trades == []                   # overnight signal never fills
 
 
-def test_eod_liquidation_at_1545():
+def test_eod_liquidation_at_1545_when_enabled():
     f = make_frame([
         (dtime(9, 30), 100, 101, 99, 100),    # signal
         (dtime(9, 35), 100, 101, 99, 100),    # entry at 100
         (dtime(10, 0), 101, 102, 100, 101),   # drifts, no exit
         (dtime(15, 45), 102, 103, 101, 102),  # forced flat at the open
     ], signal_at=(0,))
-    res = run(f)
+    res = run(f, EOD_PARAMS)
     t = res.trades[0]
     assert t.reason == "eod_close"
     assert t.exit_px == 102.0
+
+
+def test_overnight_hold_when_eod_close_off():
+    """With EOD liquidation off the position survives 15:45 and the close,
+    and is exit-checked again on the next session — here reaching the 3R
+    target (100 + 3*5 = 115) on day 2."""
+    f1 = make_frame([
+        (dtime(9, 30), 100, 101, 99, 100),    # signal
+        (dtime(9, 35), 100, 101, 99, 100),    # entry at 100
+        (dtime(15, 45), 102, 103, 101, 102),  # no forced flat
+        (dtime(15, 55), 102, 103, 101, 102),
+    ], day=1, signal_at=(0,))
+    f2 = make_frame([
+        (dtime(9, 30), 110, 116, 109, 115),   # day 2: target touched
+    ], day=2, signal_at=())
+    res = run(_concat(f1, f2))
+    assert len(res.trades) == 1
+    t = res.trades[0]
+    assert t.reason == "take_profit"
+    assert t.exit_ts.date() != t.entry_ts.date()
+    assert t.exit_px == 115.0
+
+
+def test_overnight_gap_through_stop_fills_at_next_open():
+    f1 = make_frame([
+        (dtime(9, 30), 100, 101, 99, 100),
+        (dtime(9, 35), 100, 101, 99, 100),    # entry 100, stop 95
+        (dtime(15, 55), 100, 101, 99, 100),
+    ], day=1, signal_at=(0,))
+    f2 = make_frame([
+        (dtime(9, 30), 90, 92, 89, 91),       # gaps below the stop
+    ], day=2, signal_at=())
+    res = run(_concat(f1, f2))
+    t = res.trades[0]
+    assert t.reason == "stop_loss"
+    assert t.exit_px == 90.0                  # the open, not the stop level
+
+
+def _concat(f1, f2):
+    ts = np.concatenate([f1.ts, f2.ts])
+    return SignalData(
+        ticker="TEST", asset_type="stock", ts=ts,
+        ts_pos={t: i for i, t in enumerate(ts)},
+        date=np.concatenate([f1.date, f2.date]),
+        open=np.concatenate([f1.open, f2.open]),
+        high=np.concatenate([f1.high, f2.high]),
+        low=np.concatenate([f1.low, f2.low]),
+        close=np.concatenate([f1.close, f2.close]),
+        score=np.concatenate([f1.score, f2.score]),
+        rsi=np.concatenate([f1.rsi, f2.rsi]),
+        vol_ratio=np.concatenate([f1.vol_ratio, f2.vol_ratio]),
+        trend_ok=np.concatenate([f1.trend_ok, f2.trend_ok]),
+        regime_ok=np.concatenate([f1.regime_ok, f2.regime_ok]),
+        stop_dist=np.concatenate([f1.stop_dist, f2.stop_dist]),
+        bb_pct=np.concatenate([f1.bb_pct, f2.bb_pct]),
+        adx=np.concatenate([f1.adx, f2.adx]),
+        above_vwap=np.concatenate([f1.above_vwap, f2.above_vwap]),
+        macd_pos=np.concatenate([f1.macd_pos, f2.macd_pos]),
+        ema_aligned=np.concatenate([f1.ema_aligned, f2.ema_aligned]),
+        signal=np.concatenate([f1.signal, f2.signal]),
+    )
 
 
 def test_no_entries_after_cutoff():
