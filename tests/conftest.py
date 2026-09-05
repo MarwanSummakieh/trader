@@ -16,8 +16,9 @@ def clean_config(monkeypatch):
     drift when defaults are re-tuned. Slippage off — it has its own test."""
     monkeypatch.setattr(config, "STARTING_CAPITAL", 10_000.0)
     monkeypatch.setattr(config, "POSITION_SIZE_PCT", 0.15)
-    monkeypatch.setattr(config, "RISK_PER_TRADE_PCT", 0.0)
-    monkeypatch.setattr(config, "MAX_PORTFOLIO_RISK_PCT", 0.0)
+    monkeypatch.setattr(config, "SWING_POSITION_SIZE_PCT", 0.10)
+    monkeypatch.setattr(config, "SWING_STOP_PCT", 0.10)
+    monkeypatch.setattr(config, "SWING_MAX_HOLD_DAYS", 10)
     monkeypatch.setattr(config, "MAX_POSITIONS", 8)
     monkeypatch.setattr(config, "CRYPTO_MAX_CAPITAL_PCT", 0.30)
     monkeypatch.setattr(config, "FEE_SLIPPAGE_PCT", 0.0)

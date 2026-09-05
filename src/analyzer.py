@@ -53,10 +53,20 @@ class Analysis:
     # Crypto entry feature: last completed close above the prior
     # CRYPTO_BREAKOUT_BARS-bar high (False during warmup — fails closed).
     breakout_ok: bool = False
-    # Stock volatility gate: True when the ATR term (not the STOP_LOSS_PCT
-    # floor) sets the stop — i.e. intraday vol is high enough for the R
+    # Stock volatility gate: True when the ATR term clears ATR_GATE_MULT of
+    # the STOP_LOSS_PCT floor — i.e. intraday vol is high enough for the R
     # geometry to work. False during ATR warmup — fails closed.
     atr_binding: bool = False
+    # Which entry family produced the levels below. The scanner rewrites a
+    # momentum-failed stock Analysis into a "swing" one (wide stop) when the
+    # swing rule fires; the ledger records it so exits can tell them apart.
+    strategy: str = "momentum"
+    # Swing (RSI(2) pullback) features from COMPLETED daily bars only:
+    # swing_ok = prior-close RSI(2) < SWING_RSI2_MAX and close > 200d SMA;
+    # swing_exit_level = mean of the prior 4 closes (price above it at the
+    # session end == today's close would lift the 5-day SMA -> exit).
+    swing_ok: bool = False
+    swing_exit_level: float = float("nan")
 
     timestamp: datetime = field(default_factory=lambda: datetime.now(ET))
 
@@ -205,10 +215,30 @@ def analyze(
     # above (price * 2%) would otherwise make warmup bars pass the gate.
     atr_raw = intra["atr"].iloc[-1]
     atr_binding = bool(
-        pd.notna(atr_raw) and float(atr_raw) * 1.5 > price * config.STOP_LOSS_PCT
+        pd.notna(atr_raw)
+        and float(atr_raw) * 1.5 > price * config.STOP_LOSS_PCT * config.ATR_GATE_MULT
     )
     if asset_type == "stock" and not atr_binding:
         signals.append("Low ATR — stop pinned at floor (no-entry vol)")
+
+    # ── Swing features: last COMPLETED daily bars only ────────────────────
+    # yfinance includes today's in-progress daily row during the session;
+    # the rule is defined on the prior close, so drop anything dated today.
+    swing_ok, swing_level = False, float("nan")
+    if asset_type == "stock":
+        d_dates = [d.date() if hasattr(d, "date") else d for d in daily.index]
+        comp = daily["Close"][[d < now.date() for d in d_dates]]
+        if len(comp) >= 200:
+            rsi2 = ind.rsi(comp, 2).iloc[-1]
+            sma200 = comp.rolling(200).mean().iloc[-1]
+            swing_level = float(comp.tail(4).mean())
+            swing_ok = bool(
+                pd.notna(rsi2) and pd.notna(sma200)
+                and float(rsi2) < config.SWING_RSI2_MAX
+                and float(comp.iloc[-1]) > float(sma200)
+            )
+            if swing_ok:
+                signals.append(f"RSI(2) {float(rsi2):.0f} pullback in 200d uptrend (swing)")
 
     return Analysis(
         ticker=ticker, asset_type=asset_type, price=price,
@@ -222,6 +252,8 @@ def analyze(
         regime_ok=price > ema50_val,
         breakout_ok=breakout_ok,
         atr_binding=atr_binding,
+        swing_ok=swing_ok,
+        swing_exit_level=swing_level,
     )
 
 

@@ -1,32 +1,73 @@
-# Trader: Intraday Strategy Evaluation and Paper Execution
+# Trader
 
-## Abstract
+An automated intraday momentum trading bot for US equities, executing through
+[Alpaca](https://alpaca.markets) paper trading with server-side bracket
+orders, a live web dashboard, and a backtest engine that every strategy rule
+was validated against. A second, independent instance trades crypto 24/7
+with its own $1,000 ledger on the internal fill simulator.
 
-Trader is a Python implementation of rule-based, long-only trading strategies
-for US equities and cryptocurrencies. It combines technical signal estimation,
-position sizing, simulated or broker-managed execution, persistent transaction
-records, and chronological historical evaluation. Equity positions follow an
-intraday momentum rule; cryptocurrency positions follow an eight-hour breakout
-rule conditioned on asset-specific and Bitcoin trend measures. Separate
-processes and ledgers provide independent accounting for each asset class.
+**🔴 Live:** [trader.marwansummakieh.me](https://trader.marwansummakieh.me)
+(stocks) · [/crypto](https://trader.marwansummakieh.me/crypto) (crypto)
 
-The system supports strategy research and paper execution. The reported
-evaluation does not establish an improvement from adaptive parameter selection
-over the existing entry rules. Simulated performance is conditional on the
-data, execution assumptions, and transaction-cost model described below.
+> ⚠️ This project trades a **paper** (simulated) account. Nothing here is
+> financial advice, and past backtest performance does not predict live
+> results. If you point it at real money, that's on you.
 
-## 1. Strategy specification
+## How it works
 
-Signals are evaluated at five-minute intervals using completed intraday bars.
-Daily indicators use the most recent strictly earlier daily session, with US
-Eastern session dates for equities and UTC dates for cryptocurrencies. Signals
-more than 15 minutes old are excluded.
+Every 5 minutes during market hours the bot scans a ~60-symbol universe of
+liquid US stocks and enters positions that pass a backtest-validated momentum
+rule:
 
-### 1.1 Equity momentum
+- intraday EMA stack aligned (price > EMA9 > EMA21)
+- daily ADX > 30 (trending, not chopping)
+- RSI in [55, 70) — momentum, not blow-off
+- price above its daily EMA50 (regime gate)
+- enough intraday volatility that the ATR sets the stop, not the 2% floor
+  (volatility gate — in dead tape the bot deliberately sits flat, sometimes
+  for days, rather than churn scratch trades with no reachable target)
+- no entries after 12:00 ET, no entries on earnings reaction days
 
-The default configuration requires all of the following entry conditions:
+Exits are ATR-anchored stops with a 3R take-profit and an R-based trailing
+stop, all resting **server-side at the broker** as a GTC bracket order — so
+stops fire even if the bot process dies. Since 2026-09-03 stock positions
+are **held overnight** until the stop, target or trail fires (the old
+15:45 flatten is available via `EOD_CLOSE_STOCKS=1`): with days of runway
+the 3R target is actually reachable, which turned the July–August churn of
+end-of-day scratches back into a positive expectancy in backtests.
 
-| Variable | Entry condition |
+A second stock entry family runs alongside momentum: a **swing pullback**
+(Connors RSI(2) < 5 on the prior daily close, above the 200-day SMA),
+entered in the first 30 minutes, held until the price is back above its
+5-day average at the session end (or 10 sessions), with a 10% disaster
+stop and 10% sizing. On two years of daily bars it earned ~+0.12R per
+trade (R = 10%) with a 68% win rate, and it was the only tested rule still
+positive in the dead-volatility summer of 2026.
+
+Costs are modeled honestly: per-side spread/slippage plus Alpaca's sell-side
+regulatory fees (SEC + FINRA TAF — Alpaca charges no commission). Every rule
+was validated on train/holdout splits with walk-forward checks, net of
+all costs; the full research notes (including everything that was tested
+and rejected) live in [config.py](config.py) and [CHANGELOG.md](CHANGELOG.md).
+
+The bot runs as **one instance per asset class**, each with its own ledger
+and capital: the stock instance ($10k, Alpaca bracket orders, session hours)
+and a crypto instance ($1k, internal simulator — Alpaca has no crypto
+bracket support — scanning 24/7). `ENABLE_STOCKS` / `ENABLE_CRYPTO` select
+what an instance trades.
+
+The **crypto instance** trades its own rule, a regime-gated 8-hour
+breakout: enter only when a coin's last completed 5-minute close breaks its
+prior 8-hour high on above-average volume while **both** the coin and BTC
+are above their daily EMA50s. Full disclosure: in a research window where
+every universe coin fell 45–80%, *no* long-only crypto rule validated
+positive — this one was adopted because its gates keep the instance nearly
+flat outside confirmed uptrends (~2% max backtest drawdown vs ~8% steady
+bleed for the old rule). Its edge is unproven; the $1k instance exists to
+collect live evidence. The research notes live in [config.py](config.py)
+and [CHANGELOG.md](CHANGELOG.md).
+
+| Component | Role |
 |---|---|
 | Intraday trend | Closing price > EMA(9) > EMA(21) |
 | Daily trend strength | ADX(14) > 30 |

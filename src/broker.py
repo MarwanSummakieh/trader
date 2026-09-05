@@ -161,7 +161,10 @@ class AlpacaBroker:
             "qty": str(whole_qty),
             "side": "buy",
             "type": "market",
-            "time_in_force": "day",
+            # GTC: positions are held overnight (EOD_CLOSE_STOCKS off), so
+            # the stop/target legs must survive the session close. A DAY
+            # bracket would expire at 16:00 and leave the position naked.
+            "time_in_force": "gtc",
             "order_class": "bracket",
             "take_profit": {"limit_price": f"{tp:.2f}"},
             "stop_loss": {"stop_price": f"{stop:.2f}"},

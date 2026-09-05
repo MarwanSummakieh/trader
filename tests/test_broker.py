@@ -238,6 +238,7 @@ def test_alpaca_open_places_bracket_and_returns_fill():
     assert fill.price == 100.07 and fill.qty == 14.0
     payload = calls[0][2]
     assert payload["order_class"] == "bracket"
+    assert payload["time_in_force"] == "gtc"       # legs survive overnight
     assert payload["qty"] == "14"                  # fractional rounded down
     assert payload["stop_loss"] == {"stop_price": "95.00"}
     assert payload["take_profit"] == {"limit_price": "115.00"}

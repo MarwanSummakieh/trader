@@ -12,6 +12,8 @@ Usage:
                        --tp 2,3,6 --adx 25,30,35
     python backtest.py --trigger 1.5 --distance 1.5   # single run, overrides
     python backtest.py --no-regime           # disable daily-EMA50 gate
+    python backtest.py --eod-close           # old day-trading mode (flat at 15:45)
+    python backtest.py --no-swing            # momentum entries only
 
 Intraday 5m history is capped at ~60 days by yfinance, so that is the
 maximum backtest window. Downloads are cached in cache/ (one day TTL).
@@ -31,6 +33,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from rich import box
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 console = Console()
@@ -65,6 +68,10 @@ def main():
                    help="Entry ADX minimums, comma-separated")
     p.add_argument("--no-regime", action="store_true",
                    help="Disable the daily-EMA50 uptrend gate (A/B comparison)")
+    p.add_argument("--eod-close", action="store_true",
+                   help="Re-enable the 15:45 stock liquidation (day-trading mode)")
+    p.add_argument("--no-swing", action="store_true",
+                   help="Disable the RSI(2) swing entry family (momentum only)")
     p.add_argument("--top", type=int, default=15, help="Rows to show in sweep table")
     args = p.parse_args()
     if args.cache_date:
@@ -180,9 +187,11 @@ def main():
     for n, (adx, tp, trig, dist) in enumerate(grid, 1):
         params = replace(baseline, entry_adx_min=adx, take_profit_r_mult=tp,
                            trail_trigger_r=trig, trail_distance_r=dist,
-                           require_uptrend=baseline.require_uptrend)
+                           require_uptrend=not args.no_regime,
+                           eod_close_stocks=args.eod_close,
+                           swing_enabled=not args.no_swing)
         if len(grid) > 1:
-            console.print(f"[dim]  {n}/{len(grid)}  {params.label()}[/dim]")
+            console.print(f"[dim]  {n}/{len(grid)}  {escape(params.label())}[/dim]")
         res = simulate(frames, params)
         results.append((params, res, compute_metrics(res)))
 
@@ -212,14 +221,23 @@ def main():
         )
     console.print(tbl)
     console.print(
-        "\n[yellow]In-sample ranking only. Use --walk-forward to select on earlier data "
-        "and test later blocks; a sweep winner is not a deployment recommendation.[/yellow]"
+        "\n[dim]Caveats: single historical window — prefer parameter regions "
+        "where neighbours also perform well over a lone spike, and re-check "
+        "the winner with --days on a shorter window before adopting it.[/dim]"
+    )
+    best = results[0][0]
+    console.print(
+        f"\nBest by expectancy: [bold]{escape(best.label())}[/bold]\n"
+        f"Adopt via .env:  ENTRY_ADX_MIN={best.entry_adx_min:g}  "
+        f"TAKE_PROFIT_R_MULT={best.take_profit_r_mult:g}  "
+        f"PROFIT_TRAIL_TRIGGER_R={best.trail_trigger_r:g}  "
+        f"PROFIT_TRAIL_DISTANCE_R={best.trail_distance_r:g}"
     )
 
 
 def _print_single(params, m, res, buckets):
     pf = "∞" if m["profit_factor"] == float("inf") else f"{m['profit_factor']:.2f}"
-    console.print(f"[bold]Backtest — {params.label()}[/bold]\n")
+    console.print(f"[bold]Backtest — {escape(params.label())}[/bold]\n")
     console.print(
         f"  Trades        : {m['trades']}   (win rate {m['win_rate']:.1f}%)\n"
         f"  Total PnL     : ${m['total_pnl']:+,.2f}  ({m['return_pct']:+.2f}% "
@@ -235,6 +253,11 @@ def _print_single(params, m, res, buckets):
     if m["exit_reasons"]:
         parts = [f"{k} {v}" for k, v in sorted(m["exit_reasons"].items())]
         console.print(f"  Exits         : {'  ·  '.join(parts)}")
+    if len(m.get("by_strategy", {})) > 1:
+        parts = [f"{k}: {v['trades']} trades, {v['avg_r']:+.2f}R, "
+                 f"${v['total_pnl']:+,.0f}, win {v['win_rate']:.0f}%"
+                 for k, v in m["by_strategy"].items()]
+        console.print(f"  By strategy   : {'  ·  '.join(parts)}")
 
     if buckets:
         tbl = Table(title="Score vs outcome (entry-score buckets)",
