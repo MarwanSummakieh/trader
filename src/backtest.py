@@ -12,8 +12,8 @@ Fidelity notes (kept deliberately honest):
   target are touched in the same bar, the stop is assumed to hit first.
 - Daily-timeframe context (EMA50 / ADX) is shifted one day so a session
   never sees its own daily close.
-- A position opened at bar t is first exit-checked at bar t+1 (the live
-  monitor would catch it within 120 s; one 5 m bar is the closest analog).
+- Bracket stops and targets are active on the entry bar, after its open.
+- Historical earnings exclusions are not available in the OHLCV cache.
 """
 
 from __future__ import annotations
@@ -34,6 +34,7 @@ import yfinance as yf
 from . import indicators as ind
 from .analyzer import _score
 from .fees import sell_regulatory_fee
+from .risk import position_quantity
 import config
 
 logger = logging.getLogger(__name__)
@@ -172,14 +173,24 @@ def build_signal_frame(
     pv = tp * vol
     vwap = pv.groupby(dates.values).cumsum() / vol.groupby(dates.values).cumsum().replace(0, np.nan)
 
-    # Daily context, shifted one day so a session never sees its own close
-    d_ema50 = ind.ema(daily["Close"], config.EMA_SLOW).shift(1)
-    d_adx = ind.adx(daily["High"], daily["Low"], daily["Close"], config.ADX_PERIOD).shift(1)
-    d_dates = [d.date() if hasattr(d, "date") else d for d in daily.index]
-    ema50_map = dict(zip(d_dates, d_ema50.values))
-    adx_map = dict(zip(d_dates, d_adx.values))
-    ema50_col = dates.map(ema50_map).ffill()
-    adx_col = dates.map(adx_map).ffill()
+    # Latest strictly earlier daily session, including dates missing from
+    # the daily index (e.g. the current day is not downloaded yet).
+    context_dates = pd.Series(
+        df.index.tz_convert("UTC" if asset_type == "crypto" else ET).date,
+        index=df.index,
+    )
+    daily = daily.sort_index()
+    d_dates = np.array([d.date() for d in daily.index], dtype=object)
+    prior = np.searchsorted(d_dates, context_dates.to_numpy(), side="left") - 1
+
+    def prior_daily(values):
+        if not len(values):
+            return pd.Series(np.nan, index=df.index)
+        return pd.Series(np.where(prior >= 0, values.to_numpy()[np.maximum(prior, 0)], np.nan),
+                         index=df.index)
+
+    ema50_col = prior_daily(ind.ema(daily["Close"], config.EMA_SLOW))
+    adx_col = prior_daily(ind.adx(daily["High"], daily["Low"], daily["Close"], config.ADX_PERIOD))
 
     c = close.to_numpy(float)
     e9 = ema9.to_numpy(float)
@@ -215,8 +226,10 @@ def build_signal_frame(
 
     if asset_type == "stock":
         score[c < config.MIN_PRICE] = -1
-        if float(daily["Volume"].tail(20).mean()) < config.MIN_AVG_DAILY_VOLUME:
-            return None
+        # Per-session liquidity from earlier daily bars, never the end of
+        # the research window (which leaks future volume into past selection).
+        liquid = prior_daily(daily["Volume"].rolling(20).mean()) >= config.MIN_AVG_DAILY_VOLUME
+        score[~liquid.to_numpy()] = -1
 
     # Swing features from completed daily bars (shift(1): a session only
     # ever sees the previous close). NaN comparisons are False -> fail closed.
@@ -288,6 +301,9 @@ class SimParams:
     trail_distance_r: float = config.PROFIT_TRAIL_DISTANCE_R
     position_size_pct: float = config.POSITION_SIZE_PCT
     max_positions: int = config.MAX_POSITIONS
+    risk_per_trade_pct: float = config.RISK_PER_TRADE_PCT
+    max_portfolio_risk_pct: float = config.MAX_PORTFOLIO_RISK_PCT
+    crypto_max_capital_pct: float = config.CRYPTO_MAX_CAPITAL_PCT
     fee_slippage_pct: float = config.FEE_SLIPPAGE_PCT
     # Alpaca sell-side regulatory fees (commission is $0); see src/fees.py.
     sec_fee_rate: float = config.ALPACA_SEC_FEE_RATE
@@ -340,7 +356,7 @@ class BTTrade:
 
     @property
     def r_multiple(self) -> float:
-        return (self.exit_px - self.entry_px) / self.r if self.r > 0 else 0.0
+        return self.pnl / (self.r * self.qty) if self.r > 0 and self.qty > 0 else 0.0
 
 
 @dataclass
@@ -356,7 +372,7 @@ EOD_T = config.EOD_CLOSE_TIME     # 15:45 ET
 
 def simulate(frames: dict[str, SignalData], params: SimParams) -> SimResult:
     all_ts = sorted({t for f in frames.values() for t in f.ts})
-    tickers = list(frames)
+    tickers = sorted(frames)
 
     # BTC regime lookup for the crypto entry gate. Fails closed: no BTC
     # frame (or no BTC bar at that timestamp) means no crypto entries.
@@ -385,16 +401,62 @@ def simulate(frames: dict[str, SignalData], params: SimParams) -> SimResult:
         pos.fees = sell_regulatory_fee(
             pos.exit_px, pos.qty,
             params.sec_fee_rate, params.finra_taf_per_share, params.finra_taf_cap,
-        )
+        ) if pos.asset_type == "stock" else 0.0
         pos.reason = reason
         capital += pos.pnl
         closed.append(pos)
         del open_pos[pos.ticker]
 
+    def check_exit(tk, ts, i, open_only=False):
+        f = frames[tk]
+        pos = open_pos[tk]
+        o, h, l, c = f.open[i], f.high[i], f.low[i], f.close[i]
+        if not open_only:
+            pos.last_close = c
+
+        if pos.asset_type == "stock" and (ts.time() >= EOD_T or ts.date() != pos.entry_ts.date()):
+            close(pos, ts, o, "eod_close")
+            return
+        # Broker liquidation level: loss = margin_call_loss * margin.
+        # Sits far below the stop at low leverage; above it when levered
+        # enough that the margin runs out before the stop is reached.
+        mc_price = pos.entry_px * (1 - params.margin_call_loss / params.leverage)
+        eff_stop = max(pos.stop, mc_price)
+        if pos.stop >= pos.entry_px:
+            stop_reason = "trail_stop"
+        elif mc_price > pos.stop:
+            stop_reason = "margin_call"
+        else:
+            stop_reason = "stop_loss"
+        # Stop first (pessimistic when both stop and target are touched)
+        if o <= eff_stop:
+            close(pos, ts, o, stop_reason)
+            return
+        if o >= pos.tp:
+            close(pos, ts, o, "take_profit")
+            return
+        if open_only:
+            return
+        if l <= eff_stop:
+            close(pos, ts, eff_stop, stop_reason)
+            return
+        if h >= pos.tp:
+            close(pos, ts, pos.tp, "take_profit")
+            return
+        if params.max_hold_bars is not None and i - pos.entry_i >= params.max_hold_bars:
+            close(pos, ts, c, "time_exit")
+            return
+        # Trailing update from this bar's close, effective next bar
+        gain = c - pos.entry_px
+        if pos.r > 0 and gain >= params.trail_trigger_r * pos.r:
+            new_stop = c - params.trail_distance_r * pos.r
+            if new_stop > pos.stop:
+                pos.stop = new_stop
+
+
     for ts in all_ts:
         t_time = ts.time()
-
-        # ── Exits (positions opened before this bar) ──────────────────────
+        exited = set()
         for tk in list(open_pos):
             f = frames[tk]
             i = f.ts_pos.get(ts)
@@ -462,7 +524,7 @@ def simulate(frames: dict[str, SignalData], params: SimParams) -> SimResult:
         # ── Entries (signal from the previous completed bar) ──────────────
         candidates: list[tuple[int, str, int, str]] = []  # (score, ticker, row, strategy)
         for tk in tickers:
-            if tk in open_pos:
+            if tk in open_pos or tk in exited:
                 continue
             f = frames[tk]
             i = f.ts_pos.get(ts)
@@ -526,14 +588,43 @@ def simulate(frames: dict[str, SignalData], params: SimParams) -> SimResult:
             tp = f.close[j] + dist * params.take_profit_r_mult
             if entry_fill <= stop:                     # gapped through the stop
                 continue
-            margin = min(size, avail * 0.95)
-            qty = margin * params.leverage / entry_fill
-            r = (tp - entry_fill) / params.take_profit_r_mult
+            reserved_risk = sum(
+                (p.r + max(0.0, p.entry_px - p.r) * fee) * p.qty
+                + (sell_regulatory_fee(max(0.0, p.entry_px - p.r), p.qty,
+                    params.sec_fee_rate, params.finra_taf_per_share, params.finra_taf_cap)
+                   if p.asset_type == "stock" else 0.0)
+                for p in open_pos.values()
+            )
+            qty = position_quantity(
+                capital=capital, available=avail, entry=entry_fill, stop=stop, target=tp,
+                leverage=params.leverage, position_pct=params.position_size_pct,
+                risk_pct=params.risk_per_trade_pct,
+                portfolio_risk_pct=params.max_portfolio_risk_pct,
+                open_risk=reserved_risk, slippage=fee,
+                sell_fee_per_share=(sell_regulatory_fee(stop, 1.0, params.sec_fee_rate,
+                    params.finra_taf_per_share, params.finra_taf_cap)
+                    if f.asset_type == "stock" else 0.0),
+            )
+            if qty <= 0:
+                continue
+            margin = qty * entry_fill / params.leverage
+            if f.asset_type == "crypto" and margin + sum(
+                p.margin for p in open_pos.values() if p.asset_type == "crypto"
+            ) > capital * params.crypto_max_capital_pct:
+                continue
+            r = entry_fill - stop
             open_pos[tk] = BTTrade(
                 ticker=tk, asset_type=f.asset_type, score=sc, entry_ts=ts,
                 entry_px=entry_fill, qty=qty, stop=stop, tp=tp, r=r,
                 strategy=strat, entry_i=i, margin=margin, last_close=f.close[i],
             )
+
+        # Intrabar exits occur AFTER every open fill. They cannot release cash
+        # or a position slot retroactively for another entry at this bar's open.
+        for tk in list(open_pos):
+            i = frames[tk].ts_pos.get(ts)
+            if i is not None:
+                check_exit(tk, ts, i)
 
         eq_ts.append(ts)
         equity = capital + sum(
@@ -545,6 +636,7 @@ def simulate(frames: dict[str, SignalData], params: SimParams) -> SimResult:
             for tk in list(open_pos):
                 pos = open_pos[tk]
                 close(pos, ts, pos.last_close or pos.entry_px, "account_blown")
+            eq_val[-1] = capital
             return SimResult(params=params, trades=closed,
                              equity=pd.Series(eq_val, index=pd.DatetimeIndex(eq_ts)),
                              busted=True)
@@ -554,8 +646,10 @@ def simulate(frames: dict[str, SignalData], params: SimParams) -> SimResult:
         pos = open_pos[tk]
         close(pos, all_ts[-1], pos.last_close or pos.entry_px, "backtest_end")
 
+    if eq_val:
+        eq_val[-1] = capital  # final exit slippage/fees belong in the equity curve
     return SimResult(params=params, trades=closed,
-                     equity=pd.Series(eq_val, index=pd.DatetimeIndex(eq_ts)))
+                     equity=pd.Series(eq_val, index=pd.DatetimeIndex(eq_ts), dtype=float))
 
 
 def _momentum_signal(f: SignalData, j: int, params: SimParams) -> bool:
@@ -600,7 +694,7 @@ def slice_frames(
             mask &= f.date >= start
         if end is not None:
             mask &= f.date < end
-        if mask.sum() < 10:
+        if not mask.any():
             continue
         idx = np.where(mask)[0]
         ts_list = list(f.ts[idx])
@@ -611,9 +705,9 @@ def slice_frames(
             low=f.low[idx], close=f.close[idx], score=f.score[idx],
             rsi=f.rsi[idx], vol_ratio=f.vol_ratio[idx],
             trend_ok=f.trend_ok[idx], regime_ok=f.regime_ok[idx],
-            stop_dist=f.stop_dist[idx], bb_pct=f.bb_pct[idx],
-            adx=f.adx[idx], above_vwap=f.above_vwap[idx],
-            macd_pos=f.macd_pos[idx], ema_aligned=f.ema_aligned[idx],
+            stop_dist=f.stop_dist[idx], bb_pct=f.bb_pct[idx] if f.bb_pct is not None else None,
+            adx=f.adx[idx] if f.adx is not None else None, above_vwap=f.above_vwap[idx] if f.above_vwap is not None else None,
+            macd_pos=f.macd_pos[idx] if f.macd_pos is not None else None, ema_aligned=f.ema_aligned[idx] if f.ema_aligned is not None else None,
             brk_ok=f.brk_ok[idx] if f.brk_ok is not None else None,
             atr_ok=f.atr_ok[idx] if f.atr_ok is not None else None,
             signal=f.signal[idx] if f.signal is not None else None,
@@ -635,8 +729,10 @@ def compute_metrics(res: SimResult) -> dict:
 
     eq = res.equity
     daily = eq.groupby(eq.index.date).last()
-    daily_ret = daily.pct_change().dropna() * 100
-    roll_max = eq.cummax()
+    daily_ret = daily.pct_change() * 100
+    if len(daily):
+        daily_ret.iloc[0] = (daily.iloc[0] / res.params.starting_capital - 1) * 100
+    roll_max = eq.cummax().clip(lower=res.params.starting_capital)
     dd = ((eq - roll_max) / roll_max * 100).min() if len(eq) else 0.0
 
     reasons: dict[str, int] = {}
@@ -661,7 +757,7 @@ def compute_metrics(res: SimResult) -> dict:
         "return_pct": total / res.params.starting_capital * 100,
         "expectancy": total / len(pnls) if pnls else 0.0,
         "avg_r": float(np.mean(rs)) if rs else 0.0,
-        "profit_factor": (sum(wins) / abs(sum(losses))) if losses else math.inf,
+        "profit_factor": (sum(wins) / abs(sum(losses))) if losses else (math.inf if wins else 0.0),
         "max_dd_pct": float(dd),
         "mean_daily_pct": float(daily_ret.mean()) if len(daily_ret) else 0.0,
         "best_day_pct": float(daily_ret.max()) if len(daily_ret) else 0.0,

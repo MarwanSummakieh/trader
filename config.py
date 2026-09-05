@@ -28,7 +28,10 @@ def _env(name: str, default: str) -> str:
 VERSION = "2026-09-03"
 
 # --- Capital & Risk ---
-# Defaults below are the backtest-validated set (2026-07-02, 59d of 5m bars,
+# Historical research below used the older simulator. Its entry-bar exit,
+# liquidity lookahead, and terminal-cost errors were fixed on 2026-09-06.
+# Those historical performance claims require revalidation with the new engine.
+# Defaults below are the previously researched set (2026-07-02, 59d of 5m bars,
 # train/holdout split): entries = EMA-aligned momentum, daily ADX > 30,
 # RSI 55-70, above daily EMA50, stocks before 12:00 ET only.
 #
@@ -72,6 +75,11 @@ VERSION = "2026-09-03"
 # new family that validated is the daily RSI(2) swing rule — see SWING_*.
 STARTING_CAPITAL = float(_env("STARTING_CAPITAL", "10000"))
 POSITION_SIZE_PCT = float(_env("POSITION_SIZE_PCT", "0.15"))
+# Notional remains capped above; wide stops now receive smaller positions.
+# Limits include estimated exit slippage and stock sell fees. Gaps can exceed
+# them. These are risk budgets, not claims of optimal or validated returns.
+RISK_PER_TRADE_PCT = float(_env("RISK_PER_TRADE_PCT", "0.005"))
+MAX_PORTFOLIO_RISK_PCT = float(_env("MAX_PORTFOLIO_RISK_PCT", "0.025"))
 STOP_LOSS_PCT = float(_env("STOP_LOSS_PCT", "0.02"))       # floor for the ATR stop
 TAKE_PROFIT_R_MULT = float(_env("TAKE_PROFIT_R_MULT", "3.0"))  # target = entry + R * this
 # Validation showed 5 concurrent slots underperforms; >=7 is capital-limited anyway.
@@ -231,7 +239,7 @@ RSI_OVERBOUGHT = 70
 RSI_OVERSOLD = 30
 MIN_PRICE = 5.0                    # stocks only — crypto is exempt
 MIN_AVG_DAILY_VOLUME = 500_000     # stocks only — 20-day average share volume
-MAX_DATA_AGE_MINUTES = 15          # reject stock signals from stale bars (holidays/halts)
+MAX_DATA_AGE_MINUTES = 15          # reject stale stock AND crypto signals
 
 # --- Market Hours (US Eastern Time) ---
 MARKET_OPEN = time(9, 30)

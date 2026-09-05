@@ -11,5 +11,4 @@ data/
 .venv/
 venv/
 cache/
-.claude/
 .pytest_cache/

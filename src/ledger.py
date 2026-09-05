@@ -59,6 +59,8 @@ class Ledger:
         self._init()
 
     def _init(self):
+        # Serialize schema upgrades across the bot and dashboard processes.
+        self._conn.execute("BEGIN IMMEDIATE")
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS trades (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -101,6 +103,9 @@ class Ledger:
                 scanned_at   TEXT    NOT NULL
             )
         """)
+        columns = {r[1] for r in self._conn.execute("PRAGMA table_info(trades)")}
+        if "initial_risk" not in columns:
+            self._conn.execute("ALTER TABLE trades ADD COLUMN initial_risk REAL")
         self._conn.commit()
 
     # ── Writes ────────────────────────────────────────────────────────────

@@ -104,10 +104,18 @@ def analyze(
     # volume is systematically understated. Evaluate the last *completed* bar.
     if len(intra) >= 2:
         idx = intra.index.tz_convert(ET)
-        bar_interval = (idx[-1] - idx[-2])
+        bar_interval = pd.Timedelta(minutes=5)  # scanner always requests 5m bars
         if now < idx[-1] + bar_interval:
             intra = intra.iloc[:-1]
     if len(intra) < 30:
+        return None
+
+    # Daily bars are labeled by their session date (UTC for crypto).
+    # Exclude the signal day's daily candle even when replaying an older scan.
+    context_tz = "UTC" if asset_type == "crypto" else ET
+    signal_day = intra.index.tz_convert(context_tz)[-1].date()
+    daily = daily[[d.date() < signal_day for d in daily.index]]
+    if len(daily) < 50:
         return None
 
     price = float(intra["Close"].iloc[-1])
@@ -119,12 +127,9 @@ def analyze(
             return None
         if float(daily["Volume"].tail(20).mean()) < config.MIN_AVG_DAILY_VOLUME:
             return None
-        # Stale-data guard: on holidays/halts yfinance returns old bars and the
-        # bot would otherwise trade on them. Only enforced for stocks — the bot
-        # only scans stocks while the market is open, so fresh bars must exist.
-        last_bar_age = now - intra.index.tz_convert(ET)[-1]
-        if last_bar_age.total_seconds() > config.MAX_DATA_AGE_MINUTES * 60:
-            return None
+    last_bar_age = now - intra.index.tz_convert(ET)[-1]
+    if last_bar_age.total_seconds() > config.MAX_DATA_AGE_MINUTES * 60:
+        return None
 
     # ── Intraday indicators ───────────────────────────────────────────────
     intra["rsi"] = ind.rsi(intra["Close"], config.RSI_PERIOD)

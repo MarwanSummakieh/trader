@@ -18,6 +18,3 @@ __pycache__/
 *.pyc
 .venv/
 venv/
-
-# Local editor/agent config
-.claude/

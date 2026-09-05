@@ -1,5 +1,5 @@
 """Pin the backtest simulator's fidelity rules (documented in src/backtest.py):
-next-bar-open entries, stop-before-target pessimism, entry-bar exit skip,
+next-bar-open entries, stop-before-target pessimism, entry-bar brackets,
 same-session signals, EOD liquidation. The validated strategy numbers are
 only as trustworthy as these behaviours."""
 
@@ -77,12 +77,13 @@ def test_stop_assumed_before_target_same_bar():
     assert abs(t.pnl - (95.0 - 100.0) * 15.0) < 1e-9   # 15% of 10k / $100
 
 
-def test_entry_bar_itself_not_exit_checked():
+def test_entry_bar_stop_is_active():
     f = make_frame([(100, 101, 99, 100),
                     (100, 101, 90, 100)])     # entry bar low pierces the stop
     res = run(f)
     t = res.trades[0]
-    assert t.reason == "backtest_end"         # survived: first check is next bar
+    assert t.reason == "stop_loss"
+    assert t.exit_px == 95.0
 
 
 def test_gap_through_stop_skips_entry():
