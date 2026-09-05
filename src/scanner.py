@@ -47,7 +47,7 @@ def scan_universe(
             if a is not None:
                 results.append(a)
 
-    results.sort(key=lambda a: a.score, reverse=True)
+    results.sort(key=lambda a: (a.score, a.ticker), reverse=True)
     return results
 
 

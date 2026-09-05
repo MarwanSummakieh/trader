@@ -1,0 +1,908 @@
+{
+  "method": "expanding train / next-block test; flat at fold boundaries",
+  "candidate_count": 9,
+  "min_train_trades": 20,
+  "baseline_params": {
+    "entry_rsi_min": 55.0,
+    "entry_rsi_max": 70.0,
+    "entry_adx_min": 30.0,
+    "require_uptrend": true,
+    "require_atr_stop": true,
+    "stock_entry_cutoff": "12:00:00",
+    "crypto_min_vol_ratio": 1.2,
+    "crypto_require_btc_uptrend": true,
+    "take_profit_r_mult": 3.0,
+    "trail_trigger_r": 1.5,
+    "trail_distance_r": 1.5,
+    "position_size_pct": 0.15,
+    "max_positions": 8,
+    "risk_per_trade_pct": 0.005,
+    "max_portfolio_risk_pct": 0.025,
+    "crypto_max_capital_pct": 0.3,
+    "fee_slippage_pct": 0.001,
+    "sec_fee_rate": 2.78e-05,
+    "finra_taf_per_share": 0.000166,
+    "finra_taf_cap": 8.3,
+    "starting_capital": 10000.0,
+    "max_hold_bars": null,
+    "leverage": 1.0,
+    "margin_call_loss": 0.9
+  },
+  "candidate_params": [
+    {
+      "entry_rsi_min": 55.0,
+      "entry_rsi_max": 70.0,
+      "entry_adx_min": 25.0,
+      "require_uptrend": true,
+      "require_atr_stop": true,
+      "stock_entry_cutoff": "12:00:00",
+      "crypto_min_vol_ratio": 1.2,
+      "crypto_require_btc_uptrend": true,
+      "take_profit_r_mult": 2.0,
+      "trail_trigger_r": 1.5,
+      "trail_distance_r": 1.5,
+      "position_size_pct": 0.15,
+      "max_positions": 8,
+      "risk_per_trade_pct": 0.005,
+      "max_portfolio_risk_pct": 0.025,
+      "crypto_max_capital_pct": 0.3,
+      "fee_slippage_pct": 0.001,
+      "sec_fee_rate": 2.78e-05,
+      "finra_taf_per_share": 0.000166,
+      "finra_taf_cap": 8.3,
+      "starting_capital": 10000.0,
+      "max_hold_bars": null,
+      "leverage": 1.0,
+      "margin_call_loss": 0.9
+    },
+    {
+      "entry_rsi_min": 55.0,
+      "entry_rsi_max": 70.0,
+      "entry_adx_min": 25.0,
+      "require_uptrend": true,
+      "require_atr_stop": true,
+      "stock_entry_cutoff": "12:00:00",
+      "crypto_min_vol_ratio": 1.2,
+      "crypto_require_btc_uptrend": true,
+      "take_profit_r_mult": 3.0,
+      "trail_trigger_r": 1.5,
+      "trail_distance_r": 1.5,
+      "position_size_pct": 0.15,
+      "max_positions": 8,
+      "risk_per_trade_pct": 0.005,
+      "max_portfolio_risk_pct": 0.025,
+      "crypto_max_capital_pct": 0.3,
+      "fee_slippage_pct": 0.001,
+      "sec_fee_rate": 2.78e-05,
+      "finra_taf_per_share": 0.000166,
+      "finra_taf_cap": 8.3,
+      "starting_capital": 10000.0,
+      "max_hold_bars": null,
+      "leverage": 1.0,
+      "margin_call_loss": 0.9
+    },
+    {
+      "entry_rsi_min": 55.0,
+      "entry_rsi_max": 70.0,
+      "entry_adx_min": 25.0,
+      "require_uptrend": true,
+      "require_atr_stop": true,
+      "stock_entry_cutoff": "12:00:00",
+      "crypto_min_vol_ratio": 1.2,
+      "crypto_require_btc_uptrend": true,
+      "take_profit_r_mult": 6.0,
+      "trail_trigger_r": 1.5,
+      "trail_distance_r": 1.5,
+      "position_size_pct": 0.15,
+      "max_positions": 8,
+      "risk_per_trade_pct": 0.005,
+      "max_portfolio_risk_pct": 0.025,
+      "crypto_max_capital_pct": 0.3,
+      "fee_slippage_pct": 0.001,
+      "sec_fee_rate": 2.78e-05,
+      "finra_taf_per_share": 0.000166,
+      "finra_taf_cap": 8.3,
+      "starting_capital": 10000.0,
+      "max_hold_bars": null,
+      "leverage": 1.0,
+      "margin_call_loss": 0.9
+    },
+    {
+      "entry_rsi_min": 55.0,
+      "entry_rsi_max": 70.0,
+      "entry_adx_min": 30.0,
+      "require_uptrend": true,
+      "require_atr_stop": true,
+      "stock_entry_cutoff": "12:00:00",
+      "crypto_min_vol_ratio": 1.2,
+      "crypto_require_btc_uptrend": true,
+      "take_profit_r_mult": 2.0,
+      "trail_trigger_r": 1.5,
+      "trail_distance_r": 1.5,
+      "position_size_pct": 0.15,
+      "max_positions": 8,
+      "risk_per_trade_pct": 0.005,
+      "max_portfolio_risk_pct": 0.025,
+      "crypto_max_capital_pct": 0.3,
+      "fee_slippage_pct": 0.001,
+      "sec_fee_rate": 2.78e-05,
+      "finra_taf_per_share": 0.000166,
+      "finra_taf_cap": 8.3,
+      "starting_capital": 10000.0,
+      "max_hold_bars": null,
+      "leverage": 1.0,
+      "margin_call_loss": 0.9
+    },
+    {
+      "entry_rsi_min": 55.0,
+      "entry_rsi_max": 70.0,
+      "entry_adx_min": 30.0,
+      "require_uptrend": true,
+      "require_atr_stop": true,
+      "stock_entry_cutoff": "12:00:00",
+      "crypto_min_vol_ratio": 1.2,
+      "crypto_require_btc_uptrend": true,
+      "take_profit_r_mult": 3.0,
+      "trail_trigger_r": 1.5,
+      "trail_distance_r": 1.5,
+      "position_size_pct": 0.15,
+      "max_positions": 8,
+      "risk_per_trade_pct": 0.005,
+      "max_portfolio_risk_pct": 0.025,
+      "crypto_max_capital_pct": 0.3,
+      "fee_slippage_pct": 0.001,
+      "sec_fee_rate": 2.78e-05,
+      "finra_taf_per_share": 0.000166,
+      "finra_taf_cap": 8.3,
+      "starting_capital": 10000.0,
+      "max_hold_bars": null,
+      "leverage": 1.0,
+      "margin_call_loss": 0.9
+    },
+    {
+      "entry_rsi_min": 55.0,
+      "entry_rsi_max": 70.0,
+      "entry_adx_min": 30.0,
+      "require_uptrend": true,
+      "require_atr_stop": true,
+      "stock_entry_cutoff": "12:00:00",
+      "crypto_min_vol_ratio": 1.2,
+      "crypto_require_btc_uptrend": true,
+      "take_profit_r_mult": 6.0,
+      "trail_trigger_r": 1.5,
+      "trail_distance_r": 1.5,
+      "position_size_pct": 0.15,
+      "max_positions": 8,
+      "risk_per_trade_pct": 0.005,
+      "max_portfolio_risk_pct": 0.025,
+      "crypto_max_capital_pct": 0.3,
+      "fee_slippage_pct": 0.001,
+      "sec_fee_rate": 2.78e-05,
+      "finra_taf_per_share": 0.000166,
+      "finra_taf_cap": 8.3,
+      "starting_capital": 10000.0,
+      "max_hold_bars": null,
+      "leverage": 1.0,
+      "margin_call_loss": 0.9
+    },
+    {
+      "entry_rsi_min": 55.0,
+      "entry_rsi_max": 70.0,
+      "entry_adx_min": 35.0,
+      "require_uptrend": true,
+      "require_atr_stop": true,
+      "stock_entry_cutoff": "12:00:00",
+      "crypto_min_vol_ratio": 1.2,
+      "crypto_require_btc_uptrend": true,
+      "take_profit_r_mult": 2.0,
+      "trail_trigger_r": 1.5,
+      "trail_distance_r": 1.5,
+      "position_size_pct": 0.15,
+      "max_positions": 8,
+      "risk_per_trade_pct": 0.005,
+      "max_portfolio_risk_pct": 0.025,
+      "crypto_max_capital_pct": 0.3,
+      "fee_slippage_pct": 0.001,
+      "sec_fee_rate": 2.78e-05,
+      "finra_taf_per_share": 0.000166,
+      "finra_taf_cap": 8.3,
+      "starting_capital": 10000.0,
+      "max_hold_bars": null,
+      "leverage": 1.0,
+      "margin_call_loss": 0.9
+    },
+    {
+      "entry_rsi_min": 55.0,
+      "entry_rsi_max": 70.0,
+      "entry_adx_min": 35.0,
+      "require_uptrend": true,
+      "require_atr_stop": true,
+      "stock_entry_cutoff": "12:00:00",
+      "crypto_min_vol_ratio": 1.2,
+      "crypto_require_btc_uptrend": true,
+      "take_profit_r_mult": 3.0,
+      "trail_trigger_r": 1.5,
+      "trail_distance_r": 1.5,
+      "position_size_pct": 0.15,
+      "max_positions": 8,
+      "risk_per_trade_pct": 0.005,
+      "max_portfolio_risk_pct": 0.025,
+      "crypto_max_capital_pct": 0.3,
+      "fee_slippage_pct": 0.001,
+      "sec_fee_rate": 2.78e-05,
+      "finra_taf_per_share": 0.000166,
+      "finra_taf_cap": 8.3,
+      "starting_capital": 10000.0,
+      "max_hold_bars": null,
+      "leverage": 1.0,
+      "margin_call_loss": 0.9
+    },
+    {
+      "entry_rsi_min": 55.0,
+      "entry_rsi_max": 70.0,
+      "entry_adx_min": 35.0,
+      "require_uptrend": true,
+      "require_atr_stop": true,
+      "stock_entry_cutoff": "12:00:00",
+      "crypto_min_vol_ratio": 1.2,
+      "crypto_require_btc_uptrend": true,
+      "take_profit_r_mult": 6.0,
+      "trail_trigger_r": 1.5,
+      "trail_distance_r": 1.5,
+      "position_size_pct": 0.15,
+      "max_positions": 8,
+      "risk_per_trade_pct": 0.005,
+      "max_portfolio_risk_pct": 0.025,
+      "crypto_max_capital_pct": 0.3,
+      "fee_slippage_pct": 0.001,
+      "sec_fee_rate": 2.78e-05,
+      "finra_taf_per_share": 0.000166,
+      "finra_taf_cap": 8.3,
+      "starting_capital": 10000.0,
+      "max_hold_bars": null,
+      "leverage": 1.0,
+      "margin_call_loss": 0.9
+    }
+  ],
+  "max_train_drawdown_pct": 10.0,
+  "folds": [
+    {
+      "fold": 1,
+      "train_start": "2026-06-11",
+      "train_end_exclusive": "2026-07-24",
+      "test_start": "2026-07-24",
+      "test_end_exclusive": "2026-08-07",
+      "eligible_candidates": 0,
+      "selected_params": null,
+      "selected_train_metrics": null,
+      "selected": {
+        "trades": 0,
+        "win_rate": 0.0,
+        "total_pnl": 0,
+        "return_pct": 0.0,
+        "expectancy": 0.0,
+        "avg_r": 0.0,
+        "profit_factor": 0.0,
+        "max_dd_pct": 0.0,
+        "mean_daily_pct": 0.0,
+        "best_day_pct": 0.0,
+        "worst_day_pct": 0.0,
+        "days_ge_5pct": 0,
+        "n_days": 10,
+        "exit_reasons": {}
+      },
+      "baseline": {
+        "trades": 0,
+        "win_rate": 0.0,
+        "total_pnl": 0,
+        "return_pct": 0.0,
+        "expectancy": 0.0,
+        "avg_r": 0.0,
+        "profit_factor": 0.0,
+        "max_dd_pct": 0.0,
+        "mean_daily_pct": 0.0,
+        "best_day_pct": 0.0,
+        "worst_day_pct": 0.0,
+        "days_ge_5pct": 0,
+        "n_days": 10,
+        "exit_reasons": {}
+      },
+      "fixed_size": {
+        "trades": 0,
+        "win_rate": 0.0,
+        "total_pnl": 0,
+        "return_pct": 0.0,
+        "expectancy": 0.0,
+        "avg_r": 0.0,
+        "profit_factor": 0.0,
+        "max_dd_pct": 0.0,
+        "mean_daily_pct": 0.0,
+        "best_day_pct": 0.0,
+        "worst_day_pct": 0.0,
+        "days_ge_5pct": 0,
+        "n_days": 10,
+        "exit_reasons": {}
+      }
+    },
+    {
+      "fold": 2,
+      "train_start": "2026-06-11",
+      "train_end_exclusive": "2026-08-07",
+      "test_start": "2026-08-07",
+      "test_end_exclusive": "2026-08-21",
+      "eligible_candidates": 0,
+      "selected_params": null,
+      "selected_train_metrics": null,
+      "selected": {
+        "trades": 0,
+        "win_rate": 0.0,
+        "total_pnl": 0,
+        "return_pct": 0.0,
+        "expectancy": 0.0,
+        "avg_r": 0.0,
+        "profit_factor": 0.0,
+        "max_dd_pct": 0.0,
+        "mean_daily_pct": 0.0,
+        "best_day_pct": 0.0,
+        "worst_day_pct": 0.0,
+        "days_ge_5pct": 0,
+        "n_days": 10,
+        "exit_reasons": {}
+      },
+      "baseline": {
+        "trades": 0,
+        "win_rate": 0.0,
+        "total_pnl": 0,
+        "return_pct": 0.0,
+        "expectancy": 0.0,
+        "avg_r": 0.0,
+        "profit_factor": 0.0,
+        "max_dd_pct": 0.0,
+        "mean_daily_pct": 0.0,
+        "best_day_pct": 0.0,
+        "worst_day_pct": 0.0,
+        "days_ge_5pct": 0,
+        "n_days": 10,
+        "exit_reasons": {}
+      },
+      "fixed_size": {
+        "trades": 0,
+        "win_rate": 0.0,
+        "total_pnl": 0,
+        "return_pct": 0.0,
+        "expectancy": 0.0,
+        "avg_r": 0.0,
+        "profit_factor": 0.0,
+        "max_dd_pct": 0.0,
+        "mean_daily_pct": 0.0,
+        "best_day_pct": 0.0,
+        "worst_day_pct": 0.0,
+        "days_ge_5pct": 0,
+        "n_days": 10,
+        "exit_reasons": {}
+      }
+    },
+    {
+      "fold": 3,
+      "train_start": "2026-06-11",
+      "train_end_exclusive": "2026-08-21",
+      "test_start": "2026-08-21",
+      "test_end_exclusive": "2026-09-04",
+      "eligible_candidates": 0,
+      "selected_params": null,
+      "selected_train_metrics": null,
+      "selected": {
+        "trades": 0,
+        "win_rate": 0.0,
+        "total_pnl": 0,
+        "return_pct": 0.0,
+        "expectancy": 0.0,
+        "avg_r": 0.0,
+        "profit_factor": 0.0,
+        "max_dd_pct": 0.0,
+        "mean_daily_pct": 0.0,
+        "best_day_pct": 0.0,
+        "worst_day_pct": 0.0,
+        "days_ge_5pct": 0,
+        "n_days": 10,
+        "exit_reasons": {}
+      },
+      "baseline": {
+        "trades": 1,
+        "win_rate": 0.0,
+        "total_pnl": -35.34090764211762,
+        "return_pct": -0.3534090764211762,
+        "expectancy": -35.34090764211762,
+        "avg_r": -1.0445868349911374,
+        "profit_factor": 0.0,
+        "max_dd_pct": -0.6572465496995672,
+        "mean_daily_pct": -0.03534090764211739,
+        "best_day_pct": 0.0,
+        "worst_day_pct": -0.3534090764211739,
+        "days_ge_5pct": 0,
+        "n_days": 10,
+        "exit_reasons": {
+          "stop_loss": 1
+        }
+      },
+      "fixed_size": {
+        "trades": 1,
+        "win_rate": 0.0,
+        "total_pnl": -35.34090764211762,
+        "return_pct": -0.3534090764211762,
+        "expectancy": -35.34090764211762,
+        "avg_r": -1.0445868349911374,
+        "profit_factor": 0.0,
+        "max_dd_pct": -0.6572465496995672,
+        "mean_daily_pct": -0.03534090764211739,
+        "best_day_pct": 0.0,
+        "worst_day_pct": -0.3534090764211739,
+        "days_ge_5pct": 0,
+        "n_days": 10,
+        "exit_reasons": {
+          "stop_loss": 1
+        }
+      }
+    }
+  ],
+  "out_of_sample": {
+    "selected": {
+      "trades": 0,
+      "win_rate": 0.0,
+      "total_pnl": 0,
+      "return_pct": 0.0,
+      "expectancy": 0.0,
+      "avg_r": 0.0,
+      "profit_factor": 0.0,
+      "max_dd_pct": 0.0,
+      "mean_daily_pct": 0.0,
+      "best_day_pct": 0.0,
+      "worst_day_pct": 0.0,
+      "days_ge_5pct": 0,
+      "n_days": 30,
+      "exit_reasons": {}
+    },
+    "baseline": {
+      "trades": 1,
+      "win_rate": 0.0,
+      "total_pnl": -35.34090764211762,
+      "return_pct": -0.3534090764211762,
+      "expectancy": -35.34090764211762,
+      "avg_r": -1.0445868349911374,
+      "profit_factor": 0.0,
+      "max_dd_pct": -0.6572465496995672,
+      "mean_daily_pct": -0.011780302547372465,
+      "best_day_pct": 0.0,
+      "worst_day_pct": -0.3534090764211739,
+      "days_ge_5pct": 0,
+      "n_days": 30,
+      "exit_reasons": {
+        "stop_loss": 1
+      }
+    },
+    "fixed_size": {
+      "trades": 1,
+      "win_rate": 0.0,
+      "total_pnl": -35.34090764211762,
+      "return_pct": -0.3534090764211762,
+      "expectancy": -35.34090764211762,
+      "avg_r": -1.0445868349911374,
+      "profit_factor": 0.0,
+      "max_dd_pct": -0.6572465496995672,
+      "mean_daily_pct": -0.011780302547372465,
+      "best_day_pct": 0.0,
+      "worst_day_pct": -0.3534090764211739,
+      "days_ge_5pct": 0,
+      "n_days": 30,
+      "exit_reasons": {
+        "stop_loss": 1
+      }
+    }
+  },
+  "notes": [
+    "Selection maximizes train net return subject to the stated risk and sample limits.",
+    "A cash fold means insufficient positive training evidence, not a proven edge.",
+    "fixed_size uses the same corrected simulator with both risk caps disabled.",
+    "Static present-day universe; survivorship bias is not eliminated.",
+    "Historical earnings exclusions are not replayed from OHLCV caches.",
+    "Slippage is modeled; crypto venue fees, funding and market impact are not.",
+    "Short, previously researched histories do not prove future profitability."
+  ],
+  "data": {
+    "cache_date": "20260903",
+    "days_requested": 59,
+    "symbols": [
+      "AAPL",
+      "ABBV",
+      "AMAT",
+      "AMD",
+      "AMZN",
+      "ARM",
+      "AVGO",
+      "BAC",
+      "BIIB",
+      "BNTX",
+      "C",
+      "COIN",
+      "CVX",
+      "DIS",
+      "GOOGL",
+      "GS",
+      "HAL",
+      "HOOD",
+      "INTC",
+      "IWM",
+      "JPM",
+      "KLAC",
+      "LCID",
+      "LRCX",
+      "LYFT",
+      "META",
+      "MRNA",
+      "MRVL",
+      "MS",
+      "MSFT",
+      "MSTR",
+      "MU",
+      "NFLX",
+      "NKE",
+      "NVDA",
+      "OXY",
+      "PFE",
+      "PINS",
+      "PLTR",
+      "QCOM",
+      "QQQ",
+      "RBLX",
+      "RIVN",
+      "SBUX",
+      "SCHW",
+      "SLB",
+      "SMCI",
+      "SNAP",
+      "SOXL",
+      "SPXL",
+      "SPY",
+      "TECL",
+      "TNA",
+      "TQQQ",
+      "TSLA",
+      "UBER",
+      "UDOW",
+      "UPRO",
+      "UVXY",
+      "WFC",
+      "XOM"
+    ],
+    "missing_symbols": [],
+    "first_bar": "2026-06-11 09:30:00-04:00",
+    "last_bar": "2026-09-03 13:50:00-04:00",
+    "coverage": {
+      "AAPL": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "ABBV": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "AMAT": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "AMD": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "AMZN": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "ARM": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "AVGO": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "BAC": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "BIIB": {
+        "bars": 4534,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:45:00-04:00"
+      },
+      "BNTX": {
+        "bars": 4525,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:45:00-04:00"
+      },
+      "C": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "COIN": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "CVX": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "DIS": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "GOOGL": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "GS": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "HAL": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "HOOD": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "INTC": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "IWM": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "JPM": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "KLAC": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "LCID": {
+        "bars": 4570,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "LRCX": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "LYFT": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "META": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "MRNA": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "MRVL": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "MS": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "MSFT": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "MSTR": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "MU": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "NFLX": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "NKE": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "NVDA": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "OXY": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "PFE": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "PINS": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "PLTR": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "QCOM": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "QQQ": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "RBLX": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "RIVN": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "SBUX": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "SCHW": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "SLB": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "SMCI": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "SNAP": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "SOXL": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "SPXL": {
+        "bars": 4576,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:45:00-04:00"
+      },
+      "SPY": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "TECL": {
+        "bars": 4565,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "TNA": {
+        "bars": 4576,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:45:00-04:00"
+      },
+      "TQQQ": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "TSLA": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "UBER": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "UDOW": {
+        "bars": 4576,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "UPRO": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "UVXY": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "WFC": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      },
+      "XOM": {
+        "bars": 4577,
+        "first_bar": "2026-06-11 09:30:00-04:00",
+        "last_bar": "2026-09-03 13:50:00-04:00"
+      }
+    }
+  },
+  "code_version": "2026-09-06",
+  "signal_config": {
+    "STOP_LOSS_PCT": 0.02,
+    "CRYPTO_BREAKOUT_BARS": 96,
+    "RSI_PERIOD": 14,
+    "EMA_FAST": 9,
+    "EMA_MID": 21,
+    "EMA_SLOW": 50,
+    "ATR_PERIOD": 14,
+    "ADX_PERIOD": 14,
+    "MACD_FAST": 12,
+    "MACD_SLOW": 26,
+    "MACD_SIGNAL_PERIOD": 9,
+    "BB_PERIOD": 20,
+    "BB_STD": 2.0,
+    "VOLUME_LOOKBACK": 20,
+    "MIN_PRICE": 5.0,
+    "MIN_AVG_DAILY_VOLUME": 500000,
+    "MAX_DATA_AGE_MINUTES": 15
+  }
+}

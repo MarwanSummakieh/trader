@@ -10,6 +10,7 @@ from .analyzer import Analysis
 from .broker import Broker, SimBroker
 from .fees import sell_regulatory_fee
 from .ledger import Ledger, Trade
+from .risk import position_quantity
 import config
 
 logger = logging.getLogger(__name__)
@@ -69,6 +70,17 @@ class Portfolio:
             for t in self.open_trades if t.asset_type == "crypto"
         ) / config.LEVERAGE
 
+    @property
+    def open_risk(self) -> float:
+        total = 0.0
+        for trade in self.open_trades:
+            risk = max(self._initial_risk(trade), 0.0)
+            original_stop = max(0.0, trade.entry_price - risk)
+            fees = (sell_regulatory_fee(original_stop, trade.quantity)
+                    if trade.asset_type == "stock" else 0.0)
+            total += (risk + original_stop * config.FEE_SLIPPAGE_PCT) * trade.quantity + fees
+        return total
+
     def can_open(self) -> bool:
         slot_ok = self.position_count < config.MAX_POSITIONS
         size = self.capital * config.POSITION_SIZE_PCT
@@ -86,10 +98,20 @@ class Portfolio:
         # Size against the expected fill (signal price + slippage); the
         # broker reports the actual fill price/qty it achieved.
         expected_fill = analysis.entry * (1 + config.FEE_SLIPPAGE_PCT)
-        margin = min(
-            self.capital * config.POSITION_SIZE_PCT,
-            self.available_capital * 0.95,
+        quantity = position_quantity(
+            capital=self.capital, available=self.available_capital,
+            entry=expected_fill, stop=analysis.stop_loss, target=analysis.take_profit,
+            leverage=config.LEVERAGE, position_pct=config.POSITION_SIZE_PCT,
+            risk_pct=config.RISK_PER_TRADE_PCT,
+            portfolio_risk_pct=config.MAX_PORTFOLIO_RISK_PCT,
+            open_risk=self.open_risk, slippage=config.FEE_SLIPPAGE_PCT,
+            sell_fee_per_share=(sell_regulatory_fee(analysis.stop_loss, 1.0)
+                                if analysis.asset_type == "stock" else 0.0),
         )
+        if quantity <= 0:
+            logger.info("SKIP %s: invalid levels or risk budget exhausted", analysis.ticker)
+            return None
+        margin = quantity * expected_fill / config.LEVERAGE
 
         # Crypto trades 24/7; without a budget it would consume all buying
         # power overnight and leave nothing for the stock session open.
@@ -102,8 +124,6 @@ class Portfolio:
                     analysis.ticker, self.crypto_capital_deployed, crypto_budget,
                 )
                 return None
-
-        quantity = margin * config.LEVERAGE / expected_fill
 
         fill = self.broker.open(
             analysis.ticker, quantity,
@@ -130,8 +150,11 @@ class Portfolio:
         return trade
 
     def _initial_risk(self, trade: Trade) -> float:
-        """Initial risk per share (R). The stop moves as the trade trails, but
-        the target never does — so R is recovered from the target distance."""
+        """Actual initial fill-to-stop risk; legacy rows retain their old fallback."""
+        if trade.initial_risk is not None:
+            return trade.initial_risk
+        # Legacy rows have no original stop. Preserve their historical trailing
+        # behavior until they close; all new trades persist actual initial risk.
         return (trade.take_profit - trade.entry_price) / config.TAKE_PROFIT_R_MULT
 
     def _record_close(self, trade: Trade, gross_price: float, reason: str) -> Trade:
@@ -140,7 +163,8 @@ class Portfolio:
         into the effective exit price so realized PnL / pnl_pct reflect every
         real cost (buys are fee-free; spread/slippage is already in the fill).
         """
-        reg_fee = sell_regulatory_fee(gross_price, trade.quantity)
+        reg_fee = (sell_regulatory_fee(gross_price, trade.quantity)
+                   if trade.asset_type == "stock" else 0.0)
         net_price = gross_price - (reg_fee / trade.quantity if trade.quantity else 0.0)
         return self.ledger.close_trade(trade.id, net_price, reason)
 

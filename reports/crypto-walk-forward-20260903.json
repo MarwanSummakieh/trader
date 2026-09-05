@@ -1,0 +1,551 @@
+{
+  "method": "expanding train / next-block test; flat at fold boundaries",
+  "candidate_count": 3,
+  "min_train_trades": 20,
+  "baseline_params": {
+    "entry_rsi_min": 55.0,
+    "entry_rsi_max": 70.0,
+    "entry_adx_min": 30.0,
+    "require_uptrend": true,
+    "require_atr_stop": true,
+    "stock_entry_cutoff": "12:00:00",
+    "crypto_min_vol_ratio": 1.2,
+    "crypto_require_btc_uptrend": true,
+    "take_profit_r_mult": 3.0,
+    "trail_trigger_r": 1.5,
+    "trail_distance_r": 1.5,
+    "position_size_pct": 0.15,
+    "max_positions": 8,
+    "risk_per_trade_pct": 0.005,
+    "max_portfolio_risk_pct": 0.025,
+    "crypto_max_capital_pct": 1.0,
+    "fee_slippage_pct": 0.001,
+    "sec_fee_rate": 2.78e-05,
+    "finra_taf_per_share": 0.000166,
+    "finra_taf_cap": 8.3,
+    "starting_capital": 1000.0,
+    "max_hold_bars": null,
+    "leverage": 1.0,
+    "margin_call_loss": 0.9
+  },
+  "candidate_params": [
+    {
+      "entry_rsi_min": 55.0,
+      "entry_rsi_max": 70.0,
+      "entry_adx_min": 30.0,
+      "require_uptrend": true,
+      "require_atr_stop": true,
+      "stock_entry_cutoff": "12:00:00",
+      "crypto_min_vol_ratio": 1.2,
+      "crypto_require_btc_uptrend": true,
+      "take_profit_r_mult": 2.0,
+      "trail_trigger_r": 1.5,
+      "trail_distance_r": 1.5,
+      "position_size_pct": 0.15,
+      "max_positions": 8,
+      "risk_per_trade_pct": 0.005,
+      "max_portfolio_risk_pct": 0.025,
+      "crypto_max_capital_pct": 1.0,
+      "fee_slippage_pct": 0.001,
+      "sec_fee_rate": 2.78e-05,
+      "finra_taf_per_share": 0.000166,
+      "finra_taf_cap": 8.3,
+      "starting_capital": 1000.0,
+      "max_hold_bars": null,
+      "leverage": 1.0,
+      "margin_call_loss": 0.9
+    },
+    {
+      "entry_rsi_min": 55.0,
+      "entry_rsi_max": 70.0,
+      "entry_adx_min": 30.0,
+      "require_uptrend": true,
+      "require_atr_stop": true,
+      "stock_entry_cutoff": "12:00:00",
+      "crypto_min_vol_ratio": 1.2,
+      "crypto_require_btc_uptrend": true,
+      "take_profit_r_mult": 3.0,
+      "trail_trigger_r": 1.5,
+      "trail_distance_r": 1.5,
+      "position_size_pct": 0.15,
+      "max_positions": 8,
+      "risk_per_trade_pct": 0.005,
+      "max_portfolio_risk_pct": 0.025,
+      "crypto_max_capital_pct": 1.0,
+      "fee_slippage_pct": 0.001,
+      "sec_fee_rate": 2.78e-05,
+      "finra_taf_per_share": 0.000166,
+      "finra_taf_cap": 8.3,
+      "starting_capital": 1000.0,
+      "max_hold_bars": null,
+      "leverage": 1.0,
+      "margin_call_loss": 0.9
+    },
+    {
+      "entry_rsi_min": 55.0,
+      "entry_rsi_max": 70.0,
+      "entry_adx_min": 30.0,
+      "require_uptrend": true,
+      "require_atr_stop": true,
+      "stock_entry_cutoff": "12:00:00",
+      "crypto_min_vol_ratio": 1.2,
+      "crypto_require_btc_uptrend": true,
+      "take_profit_r_mult": 6.0,
+      "trail_trigger_r": 1.5,
+      "trail_distance_r": 1.5,
+      "position_size_pct": 0.15,
+      "max_positions": 8,
+      "risk_per_trade_pct": 0.005,
+      "max_portfolio_risk_pct": 0.025,
+      "crypto_max_capital_pct": 1.0,
+      "fee_slippage_pct": 0.001,
+      "sec_fee_rate": 2.78e-05,
+      "finra_taf_per_share": 0.000166,
+      "finra_taf_cap": 8.3,
+      "starting_capital": 1000.0,
+      "max_hold_bars": null,
+      "leverage": 1.0,
+      "margin_call_loss": 0.9
+    }
+  ],
+  "max_train_drawdown_pct": 10.0,
+  "folds": [
+    {
+      "fold": 1,
+      "train_start": "2026-07-06",
+      "train_end_exclusive": "2026-08-05",
+      "test_start": "2026-08-05",
+      "test_end_exclusive": "2026-08-15",
+      "eligible_candidates": 0,
+      "selected_params": null,
+      "selected_train_metrics": null,
+      "selected": {
+        "trades": 0,
+        "win_rate": 0.0,
+        "total_pnl": 0,
+        "return_pct": 0.0,
+        "expectancy": 0.0,
+        "avg_r": 0.0,
+        "profit_factor": 0.0,
+        "max_dd_pct": 0.0,
+        "mean_daily_pct": 0.0,
+        "best_day_pct": 0.0,
+        "worst_day_pct": 0.0,
+        "days_ge_5pct": 0,
+        "n_days": 10,
+        "exit_reasons": {}
+      },
+      "baseline": {
+        "trades": 11,
+        "win_rate": 27.27272727272727,
+        "total_pnl": -8.426527500297375,
+        "return_pct": -0.8426527500297374,
+        "expectancy": -0.7660479545724886,
+        "avg_r": -0.28415959112641737,
+        "profit_factor": 0.618644855925364,
+        "max_dd_pct": -2.4500314771920504,
+        "mean_daily_pct": -0.08408778947664786,
+        "best_day_pct": 0.7311415323354442,
+        "worst_day_pct": -0.4205162068603996,
+        "days_ge_5pct": 0,
+        "n_days": 10,
+        "exit_reasons": {
+          "trail_stop": 1,
+          "stop_loss": 7,
+          "take_profit": 1,
+          "backtest_end": 2
+        }
+      },
+      "fixed_size": {
+        "trades": 11,
+        "win_rate": 27.27272727272727,
+        "total_pnl": -8.426527500297375,
+        "return_pct": -0.8426527500297374,
+        "expectancy": -0.7660479545724886,
+        "avg_r": -0.28415959112641737,
+        "profit_factor": 0.618644855925364,
+        "max_dd_pct": -2.4500314771920504,
+        "mean_daily_pct": -0.08408778947664786,
+        "best_day_pct": 0.7311415323354442,
+        "worst_day_pct": -0.4205162068603996,
+        "days_ge_5pct": 0,
+        "n_days": 10,
+        "exit_reasons": {
+          "trail_stop": 1,
+          "stop_loss": 7,
+          "take_profit": 1,
+          "backtest_end": 2
+        }
+      }
+    },
+    {
+      "fold": 2,
+      "train_start": "2026-07-06",
+      "train_end_exclusive": "2026-08-15",
+      "test_start": "2026-08-15",
+      "test_end_exclusive": "2026-08-25",
+      "eligible_candidates": 0,
+      "selected_params": null,
+      "selected_train_metrics": null,
+      "selected": {
+        "trades": 0,
+        "win_rate": 0.0,
+        "total_pnl": 0,
+        "return_pct": 0.0,
+        "expectancy": 0.0,
+        "avg_r": 0.0,
+        "profit_factor": 0.0,
+        "max_dd_pct": 0.0,
+        "mean_daily_pct": 0.0,
+        "best_day_pct": 0.0,
+        "worst_day_pct": 0.0,
+        "days_ge_5pct": 0,
+        "n_days": 10,
+        "exit_reasons": {}
+      },
+      "baseline": {
+        "trades": 77,
+        "win_rate": 51.94805194805194,
+        "total_pnl": 160.07418911048808,
+        "return_pct": 16.143452154579105,
+        "expectancy": 2.0788855728634816,
+        "avg_r": 0.641222740441585,
+        "profit_factor": 2.3614535821993083,
+        "max_dd_pct": -7.118539420733523,
+        "mean_daily_pct": 1.5651481896684738,
+        "best_day_pct": 8.518620075064455,
+        "worst_day_pct": -2.78397782876304,
+        "days_ge_5pct": 3,
+        "n_days": 10,
+        "exit_reasons": {
+          "take_profit": 27,
+          "stop_loss": 32,
+          "trail_stop": 11,
+          "backtest_end": 7
+        }
+      },
+      "fixed_size": {
+        "trades": 77,
+        "win_rate": 51.94805194805194,
+        "total_pnl": 160.07418911048808,
+        "return_pct": 16.143452154579105,
+        "expectancy": 2.0788855728634816,
+        "avg_r": 0.641222740441585,
+        "profit_factor": 2.3614535821993083,
+        "max_dd_pct": -7.118539420733523,
+        "mean_daily_pct": 1.5651481896684738,
+        "best_day_pct": 8.518620075064455,
+        "worst_day_pct": -2.78397782876304,
+        "days_ge_5pct": 3,
+        "n_days": 10,
+        "exit_reasons": {
+          "take_profit": 27,
+          "stop_loss": 32,
+          "trail_stop": 11,
+          "backtest_end": 7
+        }
+      }
+    },
+    {
+      "fold": 3,
+      "train_start": "2026-07-06",
+      "train_end_exclusive": "2026-08-25",
+      "test_start": "2026-08-25",
+      "test_end_exclusive": "2026-09-04",
+      "eligible_candidates": 3,
+      "selected_params": {
+        "entry_rsi_min": 55.0,
+        "entry_rsi_max": 70.0,
+        "entry_adx_min": 30.0,
+        "require_uptrend": true,
+        "require_atr_stop": true,
+        "stock_entry_cutoff": "12:00:00",
+        "crypto_min_vol_ratio": 1.2,
+        "crypto_require_btc_uptrend": true,
+        "take_profit_r_mult": 6.0,
+        "trail_trigger_r": 1.5,
+        "trail_distance_r": 1.5,
+        "position_size_pct": 0.15,
+        "max_positions": 8,
+        "risk_per_trade_pct": 0.005,
+        "max_portfolio_risk_pct": 0.025,
+        "crypto_max_capital_pct": 1.0,
+        "fee_slippage_pct": 0.001,
+        "sec_fee_rate": 2.78e-05,
+        "finra_taf_per_share": 0.000166,
+        "finra_taf_cap": 8.3,
+        "starting_capital": 1000.0,
+        "max_hold_bars": null,
+        "leverage": 1.0,
+        "margin_call_loss": 0.9
+      },
+      "selected_train_metrics": {
+        "trades": 89,
+        "win_rate": 38.20224719101123,
+        "total_pnl": 96.00260065578614,
+        "return_pct": 9.600260065578613,
+        "expectancy": 1.0786809062447882,
+        "avg_r": 0.36375071664276487,
+        "profit_factor": 1.5787853233246307,
+        "max_dd_pct": -8.57002459019289,
+        "mean_daily_pct": 0.1985350526352232,
+        "best_day_pct": 8.760787082361343,
+        "worst_day_pct": -1.9033171855177722,
+        "days_ge_5pct": 3,
+        "n_days": 50,
+        "exit_reasons": {
+          "stop_loss": 51,
+          "trail_stop": 22,
+          "take_profit": 9,
+          "backtest_end": 7
+        }
+      },
+      "selected": {
+        "trades": 42,
+        "win_rate": 26.190476190476193,
+        "total_pnl": -9.781664807766187,
+        "return_pct": -0.9781664807766188,
+        "expectancy": -0.23289678113729018,
+        "avg_r": -0.05642933030405786,
+        "profit_factor": 0.8952600338256448,
+        "max_dd_pct": -9.372966799840112,
+        "mean_daily_pct": -0.07451532329033395,
+        "best_day_pct": 4.912336990278776,
+        "worst_day_pct": -3.1063537540935937,
+        "days_ge_5pct": 0,
+        "n_days": 10,
+        "exit_reasons": {
+          "stop_loss": 31,
+          "take_profit": 2,
+          "trail_stop": 3,
+          "backtest_end": 6
+        }
+      },
+      "baseline": {
+        "trades": 44,
+        "win_rate": 34.090909090909086,
+        "total_pnl": -12.354670313508102,
+        "return_pct": -1.0727821299297617,
+        "expectancy": -0.2807879616706387,
+        "avg_r": -0.07253956033541976,
+        "profit_factor": 0.8768771250594395,
+        "max_dd_pct": -9.072487864794992,
+        "mean_daily_pct": -0.08770018669478122,
+        "best_day_pct": 4.382240640471191,
+        "worst_day_pct": -3.104473186134149,
+        "days_ge_5pct": 0,
+        "n_days": 10,
+        "exit_reasons": {
+          "stop_loss": 29,
+          "take_profit": 5,
+          "trail_stop": 3,
+          "backtest_end": 7
+        }
+      },
+      "fixed_size": {
+        "trades": 44,
+        "win_rate": 34.090909090909086,
+        "total_pnl": -12.354670313508102,
+        "return_pct": -1.0727821299297617,
+        "expectancy": -0.2807879616706387,
+        "avg_r": -0.07253956033541976,
+        "profit_factor": 0.8768771250594395,
+        "max_dd_pct": -9.072487864794992,
+        "mean_daily_pct": -0.08770018669478122,
+        "best_day_pct": 4.382240640471191,
+        "worst_day_pct": -3.104473186134149,
+        "days_ge_5pct": 0,
+        "n_days": 10,
+        "exit_reasons": {
+          "stop_loss": 29,
+          "take_profit": 5,
+          "trail_stop": 3,
+          "backtest_end": 7
+        }
+      }
+    }
+  ],
+  "out_of_sample": {
+    "selected": {
+      "trades": 42,
+      "win_rate": 26.190476190476193,
+      "total_pnl": -9.781664807766187,
+      "return_pct": -0.9781664807766188,
+      "expectancy": -0.23289678113729018,
+      "avg_r": -0.05642933030405786,
+      "profit_factor": 0.8952600338256448,
+      "max_dd_pct": -9.372966799840112,
+      "mean_daily_pct": -0.024838441096778012,
+      "best_day_pct": 4.912336990278776,
+      "worst_day_pct": -3.1063537540935937,
+      "days_ge_5pct": 0,
+      "n_days": 30,
+      "exit_reasons": {
+        "stop_loss": 31,
+        "take_profit": 2,
+        "trail_stop": 3,
+        "backtest_end": 6
+      }
+    },
+    "baseline": {
+      "trades": 132,
+      "win_rate": 43.93939393939394,
+      "total_pnl": 139.29299129668257,
+      "return_pct": 13.929299129668257,
+      "expectancy": 1.055249934065777,
+      "avg_r": 0.32618677921858313,
+      "profit_factor": 1.5803476894548232,
+      "max_dd_pct": -12.011356025322726,
+      "mean_daily_pct": 0.464453404499015,
+      "best_day_pct": 8.518620075064455,
+      "worst_day_pct": -3.104473186134149,
+      "days_ge_5pct": 3,
+      "n_days": 30,
+      "exit_reasons": {
+        "trail_stop": 15,
+        "stop_loss": 68,
+        "take_profit": 33,
+        "backtest_end": 16
+      }
+    },
+    "fixed_size": {
+      "trades": 132,
+      "win_rate": 43.93939393939394,
+      "total_pnl": 139.29299129668257,
+      "return_pct": 13.929299129668257,
+      "expectancy": 1.055249934065777,
+      "avg_r": 0.32618677921858313,
+      "profit_factor": 1.5803476894548232,
+      "max_dd_pct": -12.011356025322726,
+      "mean_daily_pct": 0.464453404499015,
+      "best_day_pct": 8.518620075064455,
+      "worst_day_pct": -3.104473186134149,
+      "days_ge_5pct": 3,
+      "n_days": 30,
+      "exit_reasons": {
+        "trail_stop": 15,
+        "stop_loss": 68,
+        "take_profit": 33,
+        "backtest_end": 16
+      }
+    }
+  },
+  "notes": [
+    "Selection maximizes train net return subject to the stated risk and sample limits.",
+    "A cash fold means insufficient positive training evidence, not a proven edge.",
+    "fixed_size uses the same corrected simulator with both risk caps disabled.",
+    "Static present-day universe; survivorship bias is not eliminated.",
+    "Historical earnings exclusions are not replayed from OHLCV caches.",
+    "Slippage is modeled; crypto venue fees, funding and market impact are not.",
+    "Short, previously researched histories do not prove future profitability."
+  ],
+  "data": {
+    "cache_date": "20260903",
+    "days_requested": 59,
+    "symbols": [
+      "ADA-USD",
+      "ATOM-USD",
+      "AVAX-USD",
+      "BNB-USD",
+      "BTC-USD",
+      "DOGE-USD",
+      "DOT-USD",
+      "ETH-USD",
+      "LINK-USD",
+      "LTC-USD",
+      "NEAR-USD",
+      "SOL-USD",
+      "XRP-USD"
+    ],
+    "missing_symbols": [],
+    "first_bar": "2026-07-06 20:00:00-04:00",
+    "last_bar": "2026-09-03 13:25:00-04:00",
+    "coverage": {
+      "ADA-USD": {
+        "bars": 16655,
+        "first_bar": "2026-07-06 20:00:00-04:00",
+        "last_bar": "2026-09-03 13:25:00-04:00"
+      },
+      "ATOM-USD": {
+        "bars": 16655,
+        "first_bar": "2026-07-06 20:00:00-04:00",
+        "last_bar": "2026-09-03 13:25:00-04:00"
+      },
+      "AVAX-USD": {
+        "bars": 16655,
+        "first_bar": "2026-07-06 20:00:00-04:00",
+        "last_bar": "2026-09-03 13:25:00-04:00"
+      },
+      "BNB-USD": {
+        "bars": 16655,
+        "first_bar": "2026-07-06 20:00:00-04:00",
+        "last_bar": "2026-09-03 13:25:00-04:00"
+      },
+      "BTC-USD": {
+        "bars": 16650,
+        "first_bar": "2026-07-06 20:00:00-04:00",
+        "last_bar": "2026-09-03 13:25:00-04:00"
+      },
+      "DOGE-USD": {
+        "bars": 16655,
+        "first_bar": "2026-07-06 20:00:00-04:00",
+        "last_bar": "2026-09-03 13:25:00-04:00"
+      },
+      "DOT-USD": {
+        "bars": 16655,
+        "first_bar": "2026-07-06 20:00:00-04:00",
+        "last_bar": "2026-09-03 13:25:00-04:00"
+      },
+      "ETH-USD": {
+        "bars": 16653,
+        "first_bar": "2026-07-06 20:00:00-04:00",
+        "last_bar": "2026-09-03 13:25:00-04:00"
+      },
+      "LINK-USD": {
+        "bars": 16655,
+        "first_bar": "2026-07-06 20:00:00-04:00",
+        "last_bar": "2026-09-03 13:25:00-04:00"
+      },
+      "LTC-USD": {
+        "bars": 16649,
+        "first_bar": "2026-07-06 20:00:00-04:00",
+        "last_bar": "2026-09-03 13:25:00-04:00"
+      },
+      "NEAR-USD": {
+        "bars": 16655,
+        "first_bar": "2026-07-06 20:00:00-04:00",
+        "last_bar": "2026-09-03 13:25:00-04:00"
+      },
+      "SOL-USD": {
+        "bars": 16655,
+        "first_bar": "2026-07-06 20:00:00-04:00",
+        "last_bar": "2026-09-03 13:25:00-04:00"
+      },
+      "XRP-USD": {
+        "bars": 16655,
+        "first_bar": "2026-07-06 20:00:00-04:00",
+        "last_bar": "2026-09-03 13:25:00-04:00"
+      }
+    }
+  },
+  "code_version": "2026-09-06",
+  "signal_config": {
+    "STOP_LOSS_PCT": 0.02,
+    "CRYPTO_BREAKOUT_BARS": 96,
+    "RSI_PERIOD": 14,
+    "EMA_FAST": 9,
+    "EMA_MID": 21,
+    "EMA_SLOW": 50,
+    "ATR_PERIOD": 14,
+    "ADX_PERIOD": 14,
+    "MACD_FAST": 12,
+    "MACD_SLOW": 26,
+    "MACD_SIGNAL_PERIOD": 9,
+    "BB_PERIOD": 20,
+    "BB_STD": 2.0,
+    "VOLUME_LOOKBACK": 20,
+    "MIN_PRICE": 5.0,
+    "MIN_AVG_DAILY_VOLUME": 500000,
+    "MAX_DATA_AGE_MINUTES": 15
+  }
+}

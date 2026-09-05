@@ -211,7 +211,7 @@
   at build time, so uploading new files does nothing until you rebuild —
   `docker compose up -d --build`.
 - `.dockerignore` now excludes `.venv/`, `cache/`, SQLite WAL files and
-  local agent config, keeping the build context and image small.
+  local configuration, reducing the build context and image size.
 
 ### Added (migration tooling)
 

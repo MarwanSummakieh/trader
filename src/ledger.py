@@ -33,6 +33,7 @@ class Trade:
     pnl: Optional[float] = None
     pnl_pct: Optional[float] = None
     exit_reason: Optional[str] = None
+    initial_risk: Optional[float] = None  # actual fill minus original stop, immutable
 
     @property
     def is_open(self) -> bool:
@@ -58,6 +59,8 @@ class Ledger:
         self._init()
 
     def _init(self):
+        # Serialize schema upgrades across the bot and dashboard processes.
+        self._conn.execute("BEGIN IMMEDIATE")
         self._conn.execute("""
             CREATE TABLE IF NOT EXISTS trades (
                 id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,6 +95,9 @@ class Ledger:
                 scanned_at   TEXT    NOT NULL
             )
         """)
+        columns = {r[1] for r in self._conn.execute("PRAGMA table_info(trades)")}
+        if "initial_risk" not in columns:
+            self._conn.execute("ALTER TABLE trades ADD COLUMN initial_risk REAL")
         self._conn.commit()
 
     # ── Writes ────────────────────────────────────────────────────────────
@@ -111,10 +117,10 @@ class Ledger:
             cur = self._conn.execute(
                 """INSERT INTO trades
                    (ticker, asset_type, entry_time, entry_price, quantity,
-                    stop_loss, take_profit, signals)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    stop_loss, take_profit, signals, initial_risk)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (ticker, asset_type, now, entry_price, quantity,
-                 stop_loss, take_profit, json.dumps(signals)),
+                 stop_loss, take_profit, json.dumps(signals), entry_price - stop_loss),
             )
             self._conn.commit()
             return self.get_trade(cur.lastrowid)  # type: ignore[arg-type]
@@ -259,4 +265,5 @@ def _row(r: sqlite3.Row) -> Trade:
         pnl_pct=r["pnl_pct"],
         exit_reason=r["exit_reason"],
         signals=r["signals"],
+        initial_risk=r["initial_risk"],
     )
